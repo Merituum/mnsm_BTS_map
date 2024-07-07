@@ -1,108 +1,87 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton
-from PyQt5.QtWebEngineWidgets import QWebEngineView
 import folium
 import io
 import pandas as pd
-from geopy.geocoders import Nominatim
-from geopy.distance import geodesic
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QLineEdit, QPushButton, QWidget
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtCore import QUrl
+from opencage.geocoder import OpenCageGeocode
 
-class MainWindow(QMainWindow):
+class MapWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("LTE/5G Network Analyzer")
+
+        # Ustawienia okna
+        self.setWindowTitle("Mapa z lokalizacją")
         self.setGeometry(100, 100, 800, 600)
-        
+
+        # Inicjalizacja geolokatora OpenCage
+        self.geocoder = OpenCageGeocode('329efb3e6b1d4291b7559e2409deb4d4')  # klucz api tutaj
+
+        # Wczytywanie danych z pliku Excel
+        self.df = pd.read_excel(r'C:\Users\Bartosz\Desktop\kod\Map network analyzer\nadajniki\5g3600_-_stan_na_2024-06-25.xlsx')
+
+        # Przefiltruj nadajniki znajdujące się w Warszawie
+        self.df_warszawa = self.df[self.df['Miasto'].str.contains('Warszawa', na=False, case=False)]
+
+        # Tworzenie głównego widgetu
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        
+
+        # Tworzenie układu
         self.layout = QVBoxLayout(self.central_widget)
-        
-        self.address_input = QLineEdit(self)
-        self.address_input.setPlaceholderText("Enter address")
-        self.layout.addWidget(self.address_input)
-        
-        self.show_map_button = QPushButton("Show Map", self)
-        self.show_map_button.clicked.connect(self.show_map)
-        self.layout.addWidget(self.show_map_button)
-        
-        self.map_view = QWebEngineView(self)
-        self.layout.addWidget(self.map_view)
 
-    def show_map(self):
-        address = self.address_input.text()
-        if address:
-            location = self.get_location_from_address(address)
+        # Tworzenie pola do wpisywania miejscowości
+        self.location_input = QLineEdit(self)
+        self.location_input.setPlaceholderText("Wpisz nazwę miejscowości")
+        self.layout.addWidget(self.location_input)
+
+        # Tworzenie przycisku do wyszukiwania
+        self.search_button = QPushButton("Znajdź", self)
+        self.search_button.clicked.connect(self.update_map)
+        self.layout.addWidget(self.search_button)
+
+        # Tworzenie widoku WebEngineView
+        self.browser = QWebEngineView(self)
+        self.layout.addWidget(self.browser)
+
+        # Początkowa mapa
+        self.update_map(initial=True)
+
+    def update_map(self, initial=False):
+        if initial:
+            latitude, longitude = 52.2297, 21.0122  # Warszawa
+            location_name = 'Warszawa'
+        else:
+            location_name = self.location_input.text()
+            location = self.geocoder.geocode(location_name)
+
             if location:
-                self.display_map(location)
+                latitude = location[0]['geometry']['lat']
+                longitude = location[0]['geometry']['lng']
             else:
-                print("Location not found")
+                latitude, longitude = 52.2297, 21.0122  # Domyślna lokalizacja: Warszawa
+                location_name = 'Warszawa'
 
-    def get_location_from_address(self, address):
-        geolocator = Nominatim(user_agent="myGeocoder")
-        location = geolocator.geocode(address)
-        if location:
-            return location.latitude, location.longitude
-        return None
+        # Tworzenie mapy z nową lokalizacją
+        mapa = folium.Map(location=[latitude, longitude], zoom_start=12)
 
-    def dms_to_decimal(self, dms_str):
-        """
-        Convert DMS (Degrees, Minutes, Seconds) to decimal format.
-        Example input: '19E48\'22"'
-        """
-        import re
-        parts = re.split('[^\d\w]+', dms_str)
-        degrees = float(parts[0])
-        minutes = float(parts[1])
-        seconds = float(parts[2])
-        direction = parts[3]
+        # Dodanie znaczników dla nadajników w Warszawie
+        for _, row in self.df_warszawa.iterrows():
+            folium.Marker([row['Latitude'], row['Longitude']], popup=row['Nazwa']).add_to(mapa)
 
-        decimal = degrees + minutes / 60 + seconds / 3600
-        if direction in ['S', 'W']:
-            decimal *= -1
-        return decimal
-
-    def display_map(self, location):
-        lat, lon = location
-        map_ = folium.Map(location=[lat, lon], zoom_start=15)
-        folium.Marker([lat, lon], tooltip='Location').add_to(map_)
-
-        # Load data from Excel file
-        try:
-            df = pd.read_excel('nadajniki/5g3600_-_stan_na_2024-06-25.xlsx')
-        except Exception as e:
-            print(f"Error reading Excel file: {e}")
-            return
-
-        # Filter transmitters within 15 km radius
-        for index, row in df.iterrows():
-            try:
-                station_lat = self.dms_to_decimal(row['Dł geogr stacji'])
-                station_lon = self.dms_to_decimal(row['Lokalizacja'])
-            except Exception as e:
-                print(f"Error converting coordinates: {e}")
-                continue
-
-            station_location = (station_lat, station_lon)
-            distance = geodesic((lat, lon), station_location).km
-
-            if distance <= 15:
-                operator = row['Nazwa operatora']
-                station_id = row['IdStacji']
-
-                # Create HTML content for tooltip
-                tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}<br><b>Distance:</b> {distance:.2f} km"
-
-                # Add marker to the map
-                folium.Marker([station_lat, station_lon], tooltip=tooltip_html).add_to(map_)
-
-        # Save map to bytes and display in QWebEngineView
+        # Zapisanie mapy do obiektu bytes
         data = io.BytesIO()
-        map_.save(data, close_file=False)
-        self.map_view.setHtml(data.getvalue().decode())
+        mapa.save(data, close_file=False)
+
+        # Konwersja bytes do HTML string
+        html = data.getvalue().decode()
+
+        # Wczytanie mapy do widoku
+        self.browser.setHtml(html, QUrl(""))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
+    window = MapWindow()
+    window.show()
     sys.exit(app.exec_())
