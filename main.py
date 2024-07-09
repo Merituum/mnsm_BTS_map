@@ -66,7 +66,12 @@ class MainWindow(QMainWindow):
             df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
         except Exception as e:
             print(f"Error reading CSV file: {e}")
-            return
+            return  
+        operator_colors = {
+            'T-Mobile' : 'pink',
+            'Orange' : 'orange',
+            'Play' : 'violet',
+        }
 
         # Add markers for each transmitter in the specified town
         for index, row in df.iterrows():
@@ -80,7 +85,8 @@ class MainWindow(QMainWindow):
             tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}"
             # Add marker to the map
             print(trans_lat, trans_lon)
-            folium.Marker([trans_lat, trans_lon], tooltip=tooltip_html).add_to(map_)
+            color = operator_colors.get(operator)
+            folium.Marker([trans_lat, trans_lon], tooltip=tooltip_html, icon=folium.Icon(color=color)).add_to(map_)
 
         # Save map with transmitters and display in QWebEngineView
         data = io.BytesIO()
