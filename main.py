@@ -5,7 +5,6 @@ import folium
 import pandas as pd
 import io
 import requests
-from geopy.distance import geodesic
 
 OPENCAGE_API_KEY = '329efb3e6b1d4291b7559e2409deb4d4'
 
@@ -56,7 +55,6 @@ class MainWindow(QMainWindow):
         lat, lon = location
         map_ = folium.Map(location=[lat, lon], zoom_start=15)
         folium.Marker([lat, lon], tooltip='Location').add_to(map_)
-#id;siec_id;wojewodztwo_id;miejscowosc;lokalizacja;standard;pasmo;duplex;lac;btsid;cid1;cid2;cid3;cid4;cid5;cid6;cid7;cid8;cid9;cid0;ECID;eNBI;CLID;uwagi;LONGuke;LATIuke;aktualizacja;StationId;RNC;carrier
 
         # Save and display initial map
         data = io.BytesIO()
@@ -65,12 +63,12 @@ class MainWindow(QMainWindow):
 
         # Load data from CSV file
         try:
-            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+            df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
         except Exception as e:
             print(f"Error reading CSV file: {e}")
             return
 
-        # Add markers for each transmitter within 10 km
+        # Add markers for each transmitter in the specified town
         for index, row in df.iterrows():
             operator = row['siec_id']
             trans_lat = row['LATIuke']
@@ -78,15 +76,11 @@ class MainWindow(QMainWindow):
             station_id = row['StationId']
             transmitter_location = (trans_lat, trans_lon)
 
-            try:
-                if geodesic(location, transmitter_location).km <= 10:
-                    # Create HTML content for tooltip
-                    tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}"
-                    # Add marker to the map
-                    folium.Marker([trans_lat, trans_lon], tooltip=tooltip_html).add_to(map_)
-            except ValueError as e:
-                print(f"Error in geodesic calculation: {e}")
-                
+            # Create HTML content for tooltip
+            tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}"
+            # Add marker to the map
+            print(trans_lat, trans_lon)
+            folium.Marker([trans_lat, trans_lon], tooltip=tooltip_html).add_to(map_)
 
         # Save map with transmitters and display in QWebEngineView
         data = io.BytesIO()
