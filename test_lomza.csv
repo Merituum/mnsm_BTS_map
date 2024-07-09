@@ -19,3 +19,9 @@ id;siec_id;wojewodztwo_id;miejscowosc;lokalizacja;standard;pasmo;duplex;lac;btsi
 18;T-Mobile;Śląskie;Mysłowice;ul. Mikołowska 29 - dach budynku biurowego;LTE;800;FDD;53253;;;;;;;;;;;;33938700;132573;12;NetWorks;19.116944;50.232222;2023-01-14;50573;
 19;T-Mobile;Śląskie;Mysłowice;ul. Mikołowska 29 - dach budynku biurowego;LTE;800;FDD;53253;;;;;;;;;;;;33938701;132573;13;NetWorks;19.116944;50.232222;2023-01-14;50573;
 20;T-Mobile;Śląskie;Mysłowice;ul. Mikołowska 29 - dach budynku biurowego;LTE;2100;FDD;53253;;;;;;;;;;;;33938709;132573;21;NetWorks;19.116944;50.232222;2023-01-14;50573;
+21572;Orange;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773473;295990;33;NetWorks;22.079722;53.181111;2022-05-07;586;
+21573;Orange;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773472;295990;32;NetWorks;22.079722;53.181111;2022-05-07;586;
+21574;Orange;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773471;295990;31;NetWorks;22.079722;53.181111;2022-05-07;586;
+21575;T-Mobile;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773476;295990;36;NetWorks;22.079722;53.181111;2022-05-07;21036;
+21576;T-Mobile;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773475;295990;35;NetWorks;22.079722;53.181111;2022-05-07;21036;
+21577;T-Mobile;Podlaskie;Łomża;ul. Rządowa 1A - hotel Gromada;LTE;2600;FDD;59500;;;;;;;;;;;;75773474;295990;34;NetWorks;22.079722;53.181111;2022-05-07;21036;

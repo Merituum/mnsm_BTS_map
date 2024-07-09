@@ -7,7 +7,7 @@ import io
 import requests
 
 OPENCAGE_API_KEY = '329efb3e6b1d4291b7559e2409deb4d4'
-
+# TO DO -> FIX nadajników o jednakowych koordynatach
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
