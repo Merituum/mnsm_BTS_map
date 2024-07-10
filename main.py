@@ -5,8 +5,10 @@ import folium
 import pandas as pd
 import io
 import requests
+from geopy.distance import geodesic
 
 OPENCAGE_API_KEY = '329efb3e6b1d4291b7559e2409deb4d4'
+RADIUS_KM = 10  # Radius to filter transmitters
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -63,27 +65,38 @@ class MainWindow(QMainWindow):
 
         # Load data from CSV file
         try:
-            df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+            # df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+
         except Exception as e:
             print(f"Error reading CSV file: {e}")
-            return  
+            return
+        
+        # Filter data to include only transmitters within a certain radius
+        filtered_df = self.filter_transmitters_by_location(df, location, RADIUS_KM)
+
         operator_colors = {
             'T-Mobile' : 'pink',
             'Orange' : 'orange',
             'Play' : 'violet',
+            # 'Plus' : 'none'
         }
 
         # Keep track of coordinates to add offset for duplicates
         coord_count = {}
 
         # Add markers for each transmitter in the specified town
-        for index, row in df.iterrows():
+        for index, row in filtered_df.iterrows():
             operator = row['siec_id']
+            #ignore PLUS cus its shit
+            if operator == 'Plus':
+                continue
             trans_lat = row['LATIuke']
             trans_lon = row['LONGuke']
             station_id = row['StationId']
-            transmitter_location = (trans_lat, trans_lon)
 
+            transmitter_location = (trans_lat, trans_lon)
+            #fix for multiple BTSes at one coordinate
             if transmitter_location in coord_count:
                 coord_count[transmitter_location] += 1
                 trans_lat += coord_count[transmitter_location] * 0.0001  # Apply a small offset
@@ -102,6 +115,10 @@ class MainWindow(QMainWindow):
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
+
+    def filter_transmitters_by_location(self, df, location, radius_km):
+        filtered_df = df[df.apply(lambda row: geodesic(location, (row['LATIuke'], row['LONGuke'])).km <= radius_km, axis=1)]
+        return filtered_df
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
