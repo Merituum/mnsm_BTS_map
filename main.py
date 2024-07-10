@@ -7,7 +7,7 @@ import io
 import requests
 
 OPENCAGE_API_KEY = '329efb3e6b1d4291b7559e2409deb4d4'
-# TO DO -> FIX nadajników o jednakowych koordynatach
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -73,6 +73,9 @@ class MainWindow(QMainWindow):
             'Play' : 'violet',
         }
 
+        # Keep track of coordinates to add offset for duplicates
+        coord_count = {}
+
         # Add markers for each transmitter in the specified town
         for index, row in df.iterrows():
             operator = row['siec_id']
@@ -80,6 +83,13 @@ class MainWindow(QMainWindow):
             trans_lon = row['LONGuke']
             station_id = row['StationId']
             transmitter_location = (trans_lat, trans_lon)
+
+            if transmitter_location in coord_count:
+                coord_count[transmitter_location] += 1
+                trans_lat += coord_count[transmitter_location] * 0.0001  # Apply a small offset
+                trans_lon += coord_count[transmitter_location] * 0.0001
+            else:
+                coord_count[transmitter_location] = 0
 
             # Create HTML content for tooltip
             tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}"
