@@ -21,7 +21,9 @@ class Worker(QThread):
 
     def run(self):
         try:
-            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+            df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+
+            # df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
             # Filter data to include only transmitters within a certain radius
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
             self.result.emit(filtered_df)
@@ -105,44 +107,42 @@ class MainWindow(QMainWindow):
         folium.Marker([lat, lon], tooltip='Location').add_to(map_)
 
         operator_colors = {
-            'T-Mobile' : 'pink',
-            'Orange' : 'orange',
-            'Play' : 'violet',
+            'T-Mobile': 'pink',
+            'Orange': 'orange',
+            'Play': 'violet',
         }
 
-        # Keep track of coordinates to add offset for duplicates
-        coord_count = {}
+        # Filter out operators other than Orange, Play, and T-Mobile
+        filtered_df = filtered_df[filtered_df['siec_id'].isin(operator_colors.keys())]
 
-        # Add markers for each transmitter in the specified town
-        for index, row in filtered_df.iterrows():
-            operator = row['siec_id']
-            if operator == 'Plus':
-                continue  # Ignore Plus operator
+        # Group by coordinates and create multi-colored markers
+        grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
 
-            trans_lat = row['LATIuke']
-            trans_lon = row['LONGuke']
-            station_id = row['StationId']
-            transmitter_location = (trans_lat, trans_lon)
-
-            if transmitter_location in coord_count:
-                coord_count[transmitter_location] += 1
-                trans_lat += coord_count[transmitter_location] * 0.0001  # Apply a small offset
-                trans_lon += coord_count[transmitter_location] * 0.0001
+        for (lat, lon), group in grouped:
+            operators = group['siec_id'].unique()
+            if len(operators) > 1:
+                # Create a multi-color marker
+                colors = [operator_colors[op] for op in operators if op in operator_colors]
+                html = self.create_multi_color_marker(colors)
             else:
-                coord_count[transmitter_location] = 0
-
-            # Create HTML content for tooltip
-            tooltip_html = f"<b>Operator:</b> {operator}<br><b>Station ID:</b> {station_id}"
-            # Add marker to the map
-            print(trans_lat, trans_lon)
-            color = operator_colors.get(operator)
-            folium.Marker([trans_lat, trans_lon], tooltip=tooltip_html, icon=folium.Icon(color=color)).add_to(map_)
+                operator = operators[0]
+                color = operator_colors.get(operator, 'blue')
+                html = f'<div style="width: 20px; height: 20px; background-color: {color}; border-radius: 50%; border: 2px solid #000;"></div>'
+            
+            icon = folium.DivIcon(html=html)
+            folium.Marker([lat, lon], icon=icon).add_to(map_)
 
         # Save map with transmitters and display in QWebEngineView
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)  # Reset the progress bar for the next use
+
+    def create_multi_color_marker(self, colors):
+        color_width = 100 / len(colors)
+        color_blocks = ''.join([f'<div style="width: {color_width}%; height: 100%; background-color: {color};"></div>' for color in colors])
+        html = f'<div style="width: 30px; height: 30px; display: flex; border-radius: 50%; border: 2px solid #000;">{color_blocks}</div>'
+        return html
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
