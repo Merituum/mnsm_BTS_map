@@ -16,13 +16,16 @@ class Worker(QThread):
     progress = pyqtSignal(int)
     result = pyqtSignal(pd.DataFrame)
     
-    def __init__(self, location):
+    def __init__(self, location, wojewodztwo):
         super().__init__()
         self.location = location
+        self.wojewodztwo = wojewodztwo
 
     def run(self):
         try:
-            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
+            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id'])
+            # Filter by wojewodztwo
+            df = df[df['wojewodztwo_id'] == self.wojewodztwo]
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
             self.result.emit(filtered_df)
         except Exception as e:
@@ -85,7 +88,7 @@ class MainWindow(QMainWindow):
         if self.demo_radio.isChecked():
             if self.check_demo_limit():
                 self.status_label.setText("Demo version: You can make 1 request per 24 hours.")
-                location = self.get_location_from_osm(address)
+                location, wojewodztwo = self.get_location_from_osm(address)
             else:
                 self.status_label.setText("Demo limit reached. Please try again later or use the full version.")
                 return
@@ -94,10 +97,10 @@ class MainWindow(QMainWindow):
             if not api_key:
                 self.status_label.setText("Please enter a valid API key for the full version.")
                 return
-            location = self.get_location_from_opencage(address, api_key)
+            location, wojewodztwo = self.get_location_from_opencage(address, api_key)
         
-        if location:
-            self.start_worker(location)
+        if location and wojewodztwo:
+            self.start_worker(location, wojewodztwo)
         else:
             self.status_label.setText("Could not retrieve location.")
     
@@ -113,22 +116,30 @@ class MainWindow(QMainWindow):
         url = f'https://nominatim.openstreetmap.org/search?q={address}&format=json'
         response = requests.get(url).json()
         if response and len(response) > 0:
-            lat = response[0]['lat']
-            lon = response[0]['lon']
-            return float(lat), float(lon)
-        return None
+            lat = float(response[0]['lat'])
+            lon = float(response[0]['lon'])
+            # Get wojewodztwo from OSM reverse geocoding
+            reverse_url = f'https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json'
+            reverse_response = requests.get(reverse_url).json()
+            if reverse_response and 'address' in reverse_response:
+                wojewodztwo = reverse_response['address'].get('state', None)
+                return (lat, lon), wojewodztwo
+        return None, None
 
     def get_location_from_opencage(self, address, api_key):
         url = f'https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_key}'
         response = requests.get(url).json()
         if response and response['results']:
-            lat = response['results'][0]['geometry']['lat']
-            lon = response['results'][0]['geometry']['lng']
-            return float(lat), float(lon)
-        return None
+            lat = float(response['results'][0]['geometry']['lat'])
+            lon = float(response['results'][0]['geometry']['lng'])
+            # Get wojewodztwo from OpenCageData reverse geocoding
+            components = response['results'][0]['components']
+            wojewodztwo = components.get('state', None)
+            return (lat, lon), wojewodztwo
+        return None, None
 
-    def start_worker(self, location):
-        self.worker = Worker(location)
+    def start_worker(self, location, wojewodztwo):
+        self.worker = Worker(location, wojewodztwo)
         self.worker.progress.connect(self.update_progress)
         self.worker.result.connect(self.display_map)
         self.worker.start()
