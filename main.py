@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QProgressBar
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QProgressBar, QRadioButton, QButtonGroup, QLabel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QThread, pyqtSignal
 import folium
@@ -7,8 +7,9 @@ import pandas as pd
 import io
 import requests
 from geopy.distance import geodesic
+from datetime import datetime, timedelta
 
-OPENCAGE_API_KEY = '329efb3e6b1d4291b7559e2409deb4d4'
+DEMO_LAST_USED = None
 RADIUS_KM = 10  # Radius to filter transmitters
 
 class Worker(QThread):
@@ -21,10 +22,7 @@ class Worker(QThread):
 
     def run(self):
         try:
-            df = pd.read_csv('test_lomza.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
-
-            # df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
-            # Filter data to include only transmitters within a certain radius
+            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId'])
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
             self.result.emit(filtered_df)
         except Exception as e:
@@ -37,7 +35,7 @@ class Worker(QThread):
         for i, row in df.iterrows():
             if geodesic(location, (row['LATIuke'], row['LONGuke'])).km <= radius_km:
                 filtered_rows.append(row)
-            self.progress.emit(int((i / total) * 100))
+            self.progress.emit(int(((i + 1) / total) * 100))  # Update progress bar
         return pd.DataFrame(filtered_rows)
 
 class MainWindow(QMainWindow):
@@ -54,7 +52,21 @@ class MainWindow(QMainWindow):
         self.address_input = QLineEdit(self)
         self.address_input.setPlaceholderText("Enter address")
         self.layout.addWidget(self.address_input)
+
+        self.api_key_input = QLineEdit(self)
+        self.api_key_input.setPlaceholderText("Enter API key (for full version)")
+        self.layout.addWidget(self.api_key_input)
+
+        self.demo_radio = QRadioButton("Demo version (OpenStreetMap, 1 request per 24 hours)")
+        self.full_radio = QRadioButton("Full version (OpenCageData)")
+        self.layout.addWidget(self.demo_radio)
+        self.layout.addWidget(self.full_radio)
         
+        self.button_group = QButtonGroup()
+        self.button_group.addButton(self.demo_radio)
+        self.button_group.addButton(self.full_radio)
+        self.full_radio.setChecked(True)
+
         self.show_map_button = QPushButton("Show Map", self)
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
@@ -65,20 +77,49 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar(self)
         self.layout.addWidget(self.progress_bar)
 
+        self.status_label = QLabel(self)
+        self.layout.addWidget(self.status_label)
+
     def show_map(self):
         address = self.address_input.text()
-        if address:
-            location = self.get_location_from_address(address)
-            if location:
-                self.start_worker(location)
+        if self.demo_radio.isChecked():
+            if self.check_demo_limit():
+                self.status_label.setText("Demo version: You can make 1 request per 24 hours.")
+                location = self.get_location_from_osm(address)
             else:
-                print("Could not retrieve location.")
+                self.status_label.setText("Demo limit reached. Please try again later or use the full version.")
+                return
         else:
-            print("No address entered.")
+            api_key = self.api_key_input.text()
+            if not api_key:
+                self.status_label.setText("Please enter a valid API key for the full version.")
+                return
+            location = self.get_location_from_opencage(address, api_key)
+        
+        if location:
+            self.start_worker(location)
+        else:
+            self.status_label.setText("Could not retrieve location.")
+    
+    def check_demo_limit(self):
+        global DEMO_LAST_USED
+        now = datetime.now()
+        if DEMO_LAST_USED is None or now - DEMO_LAST_USED >= timedelta(hours=24):
+            DEMO_LAST_USED = now
+            return True
+        return False
 
-    def get_location_from_address(self, address):
-        # Use OpenCageData API to convert address to latitude and longitude
-        url = f'https://api.opencagedata.com/geocode/v1/json?q={address}&key={OPENCAGE_API_KEY}'
+    def get_location_from_osm(self, address):
+        url = f'https://nominatim.openstreetmap.org/search?q={address}&format=json'
+        response = requests.get(url).json()
+        if response and len(response) > 0:
+            lat = response[0]['lat']
+            lon = response[0]['lon']
+            return float(lat), float(lon)
+        return None
+
+    def get_location_from_opencage(self, address, api_key):
+        url = f'https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_key}'
         response = requests.get(url).json()
         if response and response['results']:
             lat = response['results'][0]['geometry']['lat']
@@ -99,7 +140,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(100)  # Ensure the progress bar is full
 
         if filtered_df.empty:
-            print("No data to display.")
+            self.status_label.setText("No data to display.")
             return
 
         lat, lon = filtered_df.iloc[0]['LATIuke'], filtered_df.iloc[0]['LONGuke']
@@ -112,16 +153,13 @@ class MainWindow(QMainWindow):
             'Play': 'violet',
         }
 
-        # Filter out operators other than Orange, Play, and T-Mobile
         filtered_df = filtered_df[filtered_df['siec_id'].isin(operator_colors.keys())]
 
-        # Group by coordinates and create multi-colored markers
         grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
 
         for (lat, lon), group in grouped:
             operators = group['siec_id'].unique()
             if len(operators) > 1:
-                # Create a multi-color marker
                 colors = [operator_colors[op] for op in operators if op in operator_colors]
                 html = self.create_multi_color_marker(colors)
             else:
@@ -132,11 +170,11 @@ class MainWindow(QMainWindow):
             icon = folium.DivIcon(html=html)
             folium.Marker([lat, lon], icon=icon).add_to(map_)
 
-        # Save map with transmitters and display in QWebEngineView
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)  # Reset the progress bar for the next use
+        self.status_label.setText("")
 
     def create_multi_color_marker(self, colors):
         color_width = 100 / len(colors)
