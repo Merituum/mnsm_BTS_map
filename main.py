@@ -12,6 +12,27 @@ from datetime import datetime, timedelta
 DEMO_LAST_USED = None
 RADIUS_KM = 10  # Radius to filter transmitters
 
+#maping names of voivodeships to their ids
+WOJEWODZTW_MAP = {
+    "Podlaskie Voivodeship": "Podlaskie",
+    "West Pomeranian Voivodeship": "Zachodniopomorskie",
+    "Greater Poland Voivodeship": "Wielkopolskie",
+    "Warmian-Masurian Voivodeship": "Warmińsko-Mazurskie",
+    "Lesser Poland Voivodeship": "Małopolskie",
+    "Lubin Voivodeship": "Lubuskie",
+    "Holy Cross Voivodeship": "Świętokrzyskie",
+    "Masovian Voivodeship": "Mazowieckie",
+    "Opole Voivodeship": "Opolskie",
+    "Silesian Voivodeship": "Śląskie",
+    "Lower Silesian Voivodeship": "Dolnośląskie",
+    "Lubusz Voivodeship": "Lubuskie",
+    "Kuyavian-Pomeranian Voivodeship": "Kujawsko-Pomorskie",
+    "Łódź Voivodeship": "Łódzkie",
+    "Subcarpathian Voivodeship": "Podkarpackie",
+    "Pomeranian Voivodeship": "Pomorskie",
+}
+
+
 class Worker(QThread):
     progress = pyqtSignal(int)
     result = pyqtSignal(pd.DataFrame)
@@ -24,8 +45,11 @@ class Worker(QThread):
     def run(self):
         try:
             df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id'])
+            print(f"Loaded {len(df)} rows from CSV")
             # Filter by wojewodztwo
-            df = df[df['wojewodztwo_id'] == self.wojewodztwo]
+            mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
+            df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
+            print(f"Filtered {len(df)} rows by wojewodztwo")
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
             self.result.emit(filtered_df)
         except Exception as e:
@@ -100,6 +124,7 @@ class MainWindow(QMainWindow):
             location, wojewodztwo = self.get_location_from_opencage(address, api_key)
         
         if location and wojewodztwo:
+            print(f"Location: {location}, Wojewodztwo: {wojewodztwo}")
             self.start_worker(location, wojewodztwo)
         else:
             self.status_label.setText("Could not retrieve location.")
@@ -152,8 +177,10 @@ class MainWindow(QMainWindow):
 
         if filtered_df.empty:
             self.status_label.setText("No data to display.")
+            print("Filtered DataFrame is empty.")
             return
 
+        print(f"Filtered DataFrame: {filtered_df}")
         lat, lon = filtered_df.iloc[0]['LATIuke'], filtered_df.iloc[0]['LONGuke']
         map_ = folium.Map(location=[lat, lon], zoom_start=15)
         folium.Marker([lat, lon], tooltip='Location').add_to(map_)
