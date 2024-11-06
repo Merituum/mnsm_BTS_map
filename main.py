@@ -9,10 +9,9 @@ import requests
 from geopy.distance import geodesic
 from datetime import datetime, timedelta
 
-DEMO_LAST_USED = None
 RADIUS_KM = 10  # Radius to filter transmitters
 
-#maping names of voivodeships to their ids
+# Mapping names of voivodeships to their ids
 WOJEWODZTW_MAP = {
     "Podlaskie Voivodeship": "Podlaskie",
     "West Pomeranian Voivodeship": "Zachodniopomorskie",
@@ -36,7 +35,7 @@ WOJEWODZTW_MAP = {
 class Worker(QThread):
     progress = pyqtSignal(int)
     result = pyqtSignal(pd.DataFrame)
-    
+
     def __init__(self, location, wojewodztwo):
         super().__init__()
         self.location = location
@@ -65,17 +64,18 @@ class Worker(QThread):
             self.progress.emit(int(((i + 1) / total) * 100))  # Update progress bar
         return pd.DataFrame(filtered_rows)
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("LTE/5G Network Analyzer")
         self.setGeometry(100, 100, 800, 600)
-        
+
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        
+
         self.layout = QVBoxLayout(self.central_widget)
-        
+
         self.address_input = QLineEdit(self)
         self.address_input.setPlaceholderText("Enter address")
         self.layout.addWidget(self.address_input)
@@ -84,20 +84,10 @@ class MainWindow(QMainWindow):
         self.api_key_input.setPlaceholderText("Enter API key (for full version)")
         self.layout.addWidget(self.api_key_input)
 
-        self.demo_radio = QRadioButton("Demo version (OpenStreetMap, 1 request per 24 hours)")
-        self.full_radio = QRadioButton("Full version (OpenCageData)")
-        self.layout.addWidget(self.demo_radio)
-        self.layout.addWidget(self.full_radio)
-        
-        self.button_group = QButtonGroup()
-        self.button_group.addButton(self.demo_radio)
-        self.button_group.addButton(self.full_radio)
-        self.full_radio.setChecked(True)
-
         self.show_map_button = QPushButton("Show Map", self)
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
-        
+
         self.map_view = QWebEngineView(self)
         self.layout.addWidget(self.map_view)
 
@@ -109,47 +99,17 @@ class MainWindow(QMainWindow):
 
     def show_map(self):
         address = self.address_input.text()
-        if self.demo_radio.isChecked():
-            if self.check_demo_limit():
-                self.status_label.setText("Demo version: You can make 1 request per 24 hours.")
-                location, wojewodztwo = self.get_location_from_osm(address)
-            else:
-                self.status_label.setText("Demo limit reached. Please try again later or use the full version.")
-                return
-        else:
-            api_key = self.api_key_input.text()
-            if not api_key:
-                self.status_label.setText("Please enter a valid API key for the full version.")
-                return
-            location, wojewodztwo = self.get_location_from_opencage(address, api_key)
-        
+        api_key = self.api_key_input.text()
+        if not api_key:
+            self.status_label.setText("Please enter a valid API key for the full version.")
+            return
+        location, wojewodztwo = self.get_location_from_opencage(address, api_key)
+
         if location and wojewodztwo:
             print(f"Location: {location}, Wojewodztwo: {wojewodztwo}")
             self.start_worker(location, wojewodztwo)
         else:
             self.status_label.setText("Could not retrieve location.")
-    
-    def check_demo_limit(self):
-        global DEMO_LAST_USED
-        now = datetime.now()
-        if DEMO_LAST_USED is None or now - DEMO_LAST_USED >= timedelta(hours=24):
-            DEMO_LAST_USED = now
-            return True
-        return False
-
-    def get_location_from_osm(self, address):
-        url = f'https://nominatim.openstreetmap.org/search?q={address}&format=json'
-        response = requests.get(url).json()
-        if response and len(response) > 0:
-            lat = float(response[0]['lat'])
-            lon = float(response[0]['lon'])
-            # Get wojewodztwo from OSM reverse geocoding
-            reverse_url = f'https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json'
-            reverse_response = requests.get(reverse_url).json()
-            if reverse_response and 'address' in reverse_response:
-                wojewodztwo = reverse_response['address'].get('state', None)
-                return (lat, lon), wojewodztwo
-        return None, None
 
     def get_location_from_opencage(self, address, api_key):
         url = f'https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_key}'
@@ -157,7 +117,6 @@ class MainWindow(QMainWindow):
         if response and response['results']:
             lat = float(response['results'][0]['geometry']['lat'])
             lon = float(response['results'][0]['geometry']['lng'])
-            # Get wojewodztwo from OpenCageData reverse geocoding
             components = response['results'][0]['components']
             wojewodztwo = components.get('state', None)
             return (lat, lon), wojewodztwo
@@ -219,6 +178,7 @@ class MainWindow(QMainWindow):
         color_blocks = ''.join([f'<div style="width: {color_width}%; height: 100%; background-color: {color};"></div>' for color in colors])
         html = f'<div style="width: 30px; height: 30px; display: flex; border-radius: 50%; border: 2px solid #000;">{color_blocks}</div>'
         return html
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
