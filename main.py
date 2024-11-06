@@ -8,7 +8,7 @@ import io
 import requests
 from geopy.distance import geodesic
 from datetime import datetime, timedelta
-
+from api import api
 RADIUS_KM = 10  # Radius to filter transmitters
 
 # Mapping names of voivodeships to their ids
@@ -68,7 +68,7 @@ class Worker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("LTE/5G Network Analyzer")
+        self.setWindowTitle("Mapa nadajników LTE/5G")
         self.setGeometry(100, 100, 800, 600)
 
         self.central_widget = QWidget()
@@ -77,11 +77,11 @@ class MainWindow(QMainWindow):
         self.layout = QVBoxLayout(self.central_widget)
 
         self.address_input = QLineEdit(self)
-        self.address_input.setPlaceholderText("Enter address")
+        self.address_input.setPlaceholderText("Podaj adres: ")
         self.layout.addWidget(self.address_input)
 
         self.api_key_input = QLineEdit(self)
-        self.api_key_input.setPlaceholderText("Enter API key (for full version)")
+        self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
         self.layout.addWidget(self.api_key_input)
 
         self.show_map_button = QPushButton("Show Map", self)
@@ -101,7 +101,7 @@ class MainWindow(QMainWindow):
         address = self.address_input.text()
         api_key = self.api_key_input.text()
         if not api_key:
-            self.status_label.setText("Please enter a valid API key for the full version.")
+            self.status_label.setText("Klucz API, który został podany jest niepoprawny.")
             return
         location, wojewodztwo = self.get_location_from_opencage(address, api_key)
 
@@ -135,7 +135,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(100)  # Ensure the progress bar is full
 
         if filtered_df.empty:
-            self.status_label.setText("No data to display.")
+            self.status_label.setText("Brak danych, spróbój ponownie później.")
             print("Filtered DataFrame is empty.")
             return
 
