@@ -8,7 +8,7 @@ import io
 import requests
 from geopy.distance import geodesic
 
-RADIUS_KM = 2  # Radius to filter transmitters
+RADIUS_KM = 10  # Radius to filter transmitters
 
 WOJEWODZTW_MAP = {
     "Podlaskie Voivodeship": "Podlaskie",
@@ -48,7 +48,7 @@ class Worker(QThread):
             self.result.emit(filtered_df)
         except Exception as e:
             print(f"Error reading CSV file: {e}")
-            self.result.emit(pd.DataFrame())  # Emit empty dataframe in case of error
+            self.result.emit(pd.DataFrame())
 
     def filter_transmitters_by_location(self, df, location, radius_km):
         total = len(df)
@@ -56,7 +56,7 @@ class Worker(QThread):
         for i, row in df.iterrows():
             if geodesic(location, (row['LATIuke'], row['LONGuke'])).km <= radius_km:
                 filtered_rows.append(row)
-            self.progress.emit(int(((i + 1) / total) * 100))  # Update progress bar
+            self.progress.emit(int(((i + 1) / total) * 100))
         return pd.DataFrame(filtered_rows)
 
 
@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Mapa nadajników LTE/5G")
-        self.setGeometry(100, 100, 1200, 800)  # Zwiększono rozmiar okna
+        self.setGeometry(100, 100, 800, 600)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -84,8 +84,7 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.show_map_button)
 
         self.map_view = QWebEngineView(self)
-        self.map_view.setMinimumHeight(500)  # Zwiększono minimalną wysokość mapy
-        self.layout.addWidget(self.map_view, stretch=4)  # Dodano proporcje
+        self.layout.addWidget(self.map_view)
 
         self.progress_bar = QProgressBar(self)
         self.layout.addWidget(self.progress_bar)
@@ -133,9 +132,14 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Brak danych, spróbój ponownie później.")
             return
 
-        lat, lon = filtered_df.iloc[0]['LATIuke'], filtered_df.iloc[0]['LONGuke']
-        map_ = folium.Map(location=[lat, lon], zoom_start=15)
-        folium.Marker([lat, lon], tooltip='Location').add_to(map_)
+        user_lat, user_lon = self.worker.location
+        map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
+
+        folium.Marker(
+            [user_lat, user_lon],
+            tooltip="Podany adres",
+            icon=folium.Icon(color="blue", icon="info-sign")
+        ).add_to(map_)
 
         operator_colors = {
             'T-Mobile': 'pink',
@@ -144,7 +148,6 @@ class MainWindow(QMainWindow):
         }
 
         filtered_df = filtered_df[filtered_df['siec_id'].isin(operator_colors.keys())]
-
         grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
 
         for (lat, lon), group in grouped:
@@ -156,7 +159,7 @@ class MainWindow(QMainWindow):
                 operator = operators[0]
                 color = operator_colors.get(operator, 'blue')
                 html = f'<div style="width: 20px; height: 20px; background-color: {color}; border-radius: 50%; border: 2px solid #000;"></div>'
-            
+
             icon = folium.DivIcon(html=html)
             folium.Marker([lat, lon], icon=icon).add_to(map_)
 
