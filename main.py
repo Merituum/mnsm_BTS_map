@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
         self.layout.addWidget(self.api_key_input)
 
-        self.show_map_button = QPushButton("Show Map", self)
+        self.show_map_button = QPushButton("Wyświetl mapę", self)
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
 
