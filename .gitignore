@@ -3,4 +3,10 @@ btsearch.csv
 linie.kmz
 localisations.csv
 api.py
-___pycache__/
+__pycache__
+__pycache__/
+dist/
+dist
+build/
+build
+linie.kmz

@@ -63,7 +63,7 @@ class Worker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Mapa nadajników LTE/5G")
+        self.setWindowTitle("MNSM by Merituum")
         self.setGeometry(100, 100, 800, 600)
 
         self.central_widget = QWidget()
