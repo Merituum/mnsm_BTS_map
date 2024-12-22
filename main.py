@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QProgressBar, QRadioButton, QButtonGroup, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QProgressBar, QLabel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QThread, pyqtSignal
 import folium
@@ -7,11 +7,9 @@ import pandas as pd
 import io
 import requests
 from geopy.distance import geodesic
-from datetime import datetime, timedelta
-from api import api
-RADIUS_KM = 10  # Radius to filter transmitters
 
-# Mapping names of voivodeships to their ids
+RADIUS_KM = 2  # Radius to filter transmitters
+
 WOJEWODZTW_MAP = {
     "Podlaskie Voivodeship": "Podlaskie",
     "West Pomeranian Voivodeship": "Zachodniopomorskie",
@@ -44,11 +42,8 @@ class Worker(QThread):
     def run(self):
         try:
             df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id'])
-            print(f"Loaded {len(df)} rows from CSV")
-            # Filter by wojewodztwo
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
-            print(f"Filtered {len(df)} rows by wojewodztwo")
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
             self.result.emit(filtered_df)
         except Exception as e:
@@ -69,7 +64,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Mapa nadajników LTE/5G")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1200, 800)  # Zwiększono rozmiar okna
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -89,7 +84,8 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.show_map_button)
 
         self.map_view = QWebEngineView(self)
-        self.layout.addWidget(self.map_view)
+        self.map_view.setMinimumHeight(500)  # Zwiększono minimalną wysokość mapy
+        self.layout.addWidget(self.map_view, stretch=4)  # Dodano proporcje
 
         self.progress_bar = QProgressBar(self)
         self.layout.addWidget(self.progress_bar)
@@ -106,7 +102,6 @@ class MainWindow(QMainWindow):
         location, wojewodztwo = self.get_location_from_opencage(address, api_key)
 
         if location and wojewodztwo:
-            print(f"Location: {location}, Wojewodztwo: {wojewodztwo}")
             self.start_worker(location, wojewodztwo)
         else:
             self.status_label.setText("Could not retrieve location.")
@@ -132,14 +127,12 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(value)
 
     def display_map(self, filtered_df):
-        self.progress_bar.setValue(100)  # Ensure the progress bar is full
+        self.progress_bar.setValue(100)
 
         if filtered_df.empty:
             self.status_label.setText("Brak danych, spróbój ponownie później.")
-            print("Filtered DataFrame is empty.")
             return
 
-        print(f"Filtered DataFrame: {filtered_df}")
         lat, lon = filtered_df.iloc[0]['LATIuke'], filtered_df.iloc[0]['LONGuke']
         map_ = folium.Map(location=[lat, lon], zoom_start=15)
         folium.Marker([lat, lon], tooltip='Location').add_to(map_)
@@ -170,7 +163,7 @@ class MainWindow(QMainWindow):
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
-        self.progress_bar.setValue(0)  # Reset the progress bar for the next use
+        self.progress_bar.setValue(0)
         self.status_label.setText("")
 
     def create_multi_color_marker(self, colors):
