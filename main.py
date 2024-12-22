@@ -8,7 +8,7 @@ import io
 import requests
 from geopy.distance import geodesic
 
-RADIUS_KM = 10  # Radius to filter transmitters
+RADIUS_KM = 7  # Radius to filter transmitters
 
 WOJEWODZTW_MAP = {
     "Podlaskie Voivodeship": "Podlaskie",
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.show_map_button)
 
         self.map_view = QWebEngineView(self)
-        self.layout.addWidget(self.map_view)
+        self.layout.addWidget(self.map_view, 3)
 
         self.progress_bar = QProgressBar(self)
         self.layout.addWidget(self.progress_bar)
