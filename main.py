@@ -41,7 +41,7 @@ class Worker(QThread):
 
     def run(self):
         try:
-            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo'])
+            df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard'])
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
             filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
@@ -154,8 +154,9 @@ class MainWindow(QMainWindow):
             operator_info = []
             color_blocks = []
             for operator, sub_group in group.groupby('siec_id'):
-                pasma = ', '.join(sub_group['pasmo'].astype(str).unique())
-                operator_info.append(f"{operator}: {pasma}")
+                pasma_technologie = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
+                details = [f"{pasmo} ({technologie})" for pasmo, technologie in pasma_technologie.items()]
+                operator_info.append(f"{operator}: " + '; '.join(details))
                 color = operator_colors.get(operator, 'blue')
                 color_blocks.append(f'<div style="flex: 1; background-color: {color};"></div>')
 
