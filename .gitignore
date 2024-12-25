@@ -16,3 +16,4 @@ main.spec
 pdfs_downloaded/ 
 downloaded_files/
 antenna_data.csv
+extracted_texts/
