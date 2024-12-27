@@ -1,14 +1,19 @@
 import sys
+import requests  # Dodajemy ten import
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QProgressBar, QLabel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QThread, pyqtSignal
 import folium
 import pandas as pd
 import io
-import requests
+import subprocess
+import logging
 from geopy.distance import geodesic
 
-RADIUS_KM = 1  # Radius to filter transmitters
+# Ustawienia logowania
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Mapowanie województw
 WOJEWODZTW_MAP = {
     "Podlaskie Voivodeship": "Podlaskie",
     "West Pomeranian Voivodeship": "Zachodniopomorskie",
@@ -28,8 +33,8 @@ WOJEWODZTW_MAP = {
     "Pomeranian Voivodeship": "Pomorskie",
 }
 
-# Import funkcji do pobierania danych na podstawie StationId
-from download_test import get_base_station_info  # Dopasuj nazwę pliku/funkcji
+RADIUS_KM = 1  # Promień filtrowania nadajników w kilometrach
+
 
 class Worker(QThread):
     progress = pyqtSignal(int)
@@ -44,6 +49,7 @@ class Worker(QThread):
     def run(self):
         try:
             df = pd.read_csv('output.csv', delimiter=';', usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard'])
+            df['StationId'] = df['StationId'].astype(str)
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
             self.filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
@@ -83,9 +89,9 @@ class MainWindow(QMainWindow):
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
 
-        self.fetch_data_button = QPushButton("Pobierz dane na podstawie ID", self)
-        self.fetch_data_button.clicked.connect(self.fetch_data)
-        self.layout.addWidget(self.fetch_data_button)
+        self.download_pdf_button = QPushButton("Pobierz PDF-y dla StationId", self)
+        self.download_pdf_button.clicked.connect(self.run_external_script_for_station_ids)
+        self.layout.addWidget(self.download_pdf_button)
 
         self.map_view = QWebEngineView(self)
         self.layout.addWidget(self.map_view, 3)
@@ -95,31 +101,6 @@ class MainWindow(QMainWindow):
 
         self.status_label = QLabel(self)
         self.layout.addWidget(self.status_label)
-
-    def fetch_data(self):
-        """
-        Pobiera szczegółowe dane z API na podstawie ID nadajników wyświetlonych na mapie.
-        """
-        try:
-            # Pobierz dane przefiltrowane w promieniu 7 km
-            filtered_df = self.worker.filtered_df
-            if filtered_df.empty:
-                self.status_label.setText("Brak nadajników w promieniu.")
-                return
-
-            # Pobierz StationId dla wyświetlonych nadajników
-            station_ids = filtered_df['StationId'].unique()
-
-            # Pobierz dane z API dla każdego ID
-            for station_id in station_ids:
-                print(f"Pobieram dane dla StationId: {station_id}")
-                station_data = get_base_station_info(station_id)
-                if station_data:
-                    print(f"Dane dla {station_id}: {station_data}")
-                else:
-                    print(f"Nie znaleziono danych dla {station_id}")
-        except Exception as e:
-            self.status_label.setText(f"Błąd podczas pobierania danych: {e}")
 
     def show_map(self):
         address = self.address_input.text()
@@ -154,16 +135,15 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(value)
 
     def display_map(self, filtered_df):
-        """
-        Wyświetla mapę z zaznaczonymi nadajnikami i zapisuje przefiltrowane dane w Worker.
-        """
         self.progress_bar.setValue(100)
         if filtered_df.empty:
             self.status_label.setText("Brak danych, spróbój ponownie później.")
             return
 
-        # Przypisz przefiltrowane dane do atrybutu Worker
         self.worker.filtered_df = filtered_df
+
+        station_ids = filtered_df['StationId'].unique()
+        print(f"StationIds na mapie: {station_ids}")
 
         user_lat, user_lon = self.worker.location
         map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
@@ -173,34 +153,11 @@ class MainWindow(QMainWindow):
             icon=folium.Icon(color="blue", icon="info-sign")
         ).add_to(map_)
 
-        operator_colors = {
-            'T-Mobile': 'pink',
-            'Orange': 'orange',
-            'Play': 'purple',
-            'Plus': 'green'
-        }
-
-        grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
-        for (lat, lon), group in grouped:
-            operator_info = []
-            color_blocks = []
-            for operator, sub_group in group.groupby('siec_id'):
-                pasma_technologie = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
-                details = [f"{pasmo} ({technologie})" for pasmo, technologie in pasma_technologie.items()]
-                operator_info.append(f"{operator}: " + '; '.join(details))
-                color = operator_colors.get(operator, 'blue')
-                color_blocks.append(f'<div style="flex: 1; background-color: {color};"></div>')
-            tooltip_text = '<br>'.join(operator_info)
-            html = f'''
-                <div style="width: 30px; height: 30px; display: flex; border-radius: 50%; border: 2px solid #000;">
-                    {''.join(color_blocks)}
-                </div>
-            '''
-            icon = folium.DivIcon(html=html)
+        for _, row in filtered_df.iterrows():
             folium.Marker(
-                [lat, lon],
-                tooltip=tooltip_text,
-                icon=icon
+                [row['LATIuke'], row['LONGuke']],
+                tooltip=f"StationId: {row['StationId']}",
+                icon=folium.Icon(color="red", icon="info-sign")
             ).add_to(map_)
 
         data = io.BytesIO()
@@ -208,6 +165,24 @@ class MainWindow(QMainWindow):
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)
         self.status_label.setText("")
+
+    def run_external_script_for_station_ids(self):
+        """
+        Wywołuje zewnętrzny skrypt dla każdej StationId wyświetlonej na mapie.
+        """
+        filtered_df = self.worker.filtered_df
+        if filtered_df.empty:
+            self.status_label.setText("Brak nadajników do pobrania PDF.")
+            return
+
+        station_ids = filtered_df['StationId'].unique()
+        for station_id in station_ids:
+            try:
+                # Wywołanie skryptu z ID nadajnika
+                subprocess.run(["python", "external_script.py", station_id], check=True)
+                logging.info(f"Pobrano dane dla StationId: {station_id}")
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Błąd podczas wywoływania skryptu dla StationId: {station_id}. Szczegóły: {e}")
 
 
 if __name__ == "__main__":
