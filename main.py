@@ -17,6 +17,7 @@ import pdfplumber
 import re
 import csv
 from urllib.parse import urlencode
+from math import cos, sin
 import json
 # Ustawienia logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -41,6 +42,28 @@ WOJEWODZTW_MAP = {
     "Pomeranian Voivodeship": "Pomorskie",
 }
 
+# Funkcja normalizacji operatorów
+def normalize_operator_name(name):
+    """
+    Normalizuje nazwę operatora poprzez usunięcie znaków specjalnych i przekształcenie na małe litery.
+    
+    Args:
+        name (str): Nazwa operatora do normalizacji.
+        
+    Returns:
+        str: Znormalizowana nazwa operatora.
+    """
+    return re.sub(r'[^a-zA-Z0-9]', '', name).lower()
+
+# Mapowanie operatorów na kolory z normalizacją
+OPERATOR_COLORS = {
+    normalize_operator_name('Tmobile'): 'pink',
+    normalize_operator_name('T-Mobile'): 'pink',
+    normalize_operator_name('Play'): 'purple',
+    normalize_operator_name('Orange'): 'orange',
+    normalize_operator_name('Plus'): 'green'
+}
+
 RADIUS_KM = 1  # Promień filtrowania nadajników w kilometrach
 
 # Lista możliwych nagłówków kolumn zawierających azymuty
@@ -48,6 +71,49 @@ AZIMUTH_HEADERS = [
     'Azymut H', 'Azimuth H', 'Kierunek H', 'Direction H',
     'Azymut', 'Azimuth', 'Kierunek', 'Direction'
 ]
+
+def create_svg_icon(operators, operator_colors, size=30):
+    """
+    Tworzy SVG ikony z kolorami operatorów.
+    
+    Args:
+        operators (list): Lista operatorów.
+        operator_colors (dict): Słownik mapujący operatorów na kolory.
+        size (int): Rozmiar SVG.
+        
+    Returns:
+        folium.DivIcon: Utworzony DivIcon z SVG.
+    """
+    # Definicja podstawowego okręgu
+    svg = f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
+    svg += f'<circle cx="{size/2}" cy="{size/2}" r="{size/2 - 1}" fill="white" stroke="black" stroke-width="1"/>'
+
+    # Jeśli tylko jeden operator, wypełnij cały okrąg kolorem
+    if len(operators) == 1:
+        color = operator_colors.get(operators[0], 'gray')
+        svg = f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
+        svg += f'<circle cx="{size/2}" cy="{size/2}" r="{size/2 - 1}" fill="{color}" stroke="black" stroke-width="1"/>'
+    else:
+        # Dla wielu operatorów, podziel okrąg na części
+        num_operators = len(operators)
+        angle_step = 360 / num_operators
+        for i, operator in enumerate(operators):
+            color = operator_colors.get(operator, 'gray')
+            start_angle = i * angle_step
+            end_angle = (i + 1) * angle_step
+            # Oblicz współrzędne punktów
+            start_rad = start_angle * (3.141592653589793 / 180)
+            end_rad = end_angle * (3.141592653589793 / 180)
+            x1 = size/2 + (size/2 - 1) * cos(start_rad)
+            y1 = size/2 + (size/2 - 1) * sin(start_rad)
+            x2 = size/2 + (size/2 - 1) * cos(end_rad)
+            y2 = size/2 + (size/2 - 1) * sin(end_rad)
+            large_arc = 1 if angle_step > 180 else 0
+            svg += f'<path d="M {size/2},{size/2} L {x1},{y1} A {size/2 - 1},{size/2 - 1} 0 {large_arc},1 {x2},{y2} Z" fill="{color}" stroke="black" stroke-width="1"/>'
+
+    svg += '</svg>'
+
+    return folium.DivIcon(html=svg)
 
 class Worker(QThread):
     progress = pyqtSignal(int)
@@ -63,10 +129,14 @@ class Worker(QThread):
         try:
             df = pd.read_csv(
                 'output.csv',
-                delimiter=';',
+                delimiter=';',          # Użyj tabulatora jako separatora
+                encoding='utf-8-sig',    # Obsługa BOM
                 usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard']
             )
+            logging.info(f"Kolumny w CSV: {df.columns.tolist()}")
             df['StationId'] = df['StationId'].astype(str)
+            df['pasmo'] = df['pasmo'].astype(str)        # Konwersja na string
+            df['siec_id'] = df['siec_id'].astype(str)    # Upewnienie się, że 'siec_id' jest stringiem
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
             self.filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
@@ -79,8 +149,16 @@ class Worker(QThread):
         total = len(df)
         filtered_rows = []
         for i, row in df.iterrows():
-            if geodesic(location, (row['LATIuke'], row['LONGuke'])).km <= radius_km:
-                filtered_rows.append(row)
+            try:
+                transmitter_location = (row['LATIuke'], row['LONGuke'])
+                distance = geodesic(location, transmitter_location).km
+                if distance <= radius_km:
+                    # Upewnij się, że 'pasmo' i 'siec_id' są stringami
+                    row['pasmo'] = str(row['pasmo'])
+                    row['siec_id'] = str(row['siec_id'])
+                    filtered_rows.append(row)
+            except Exception as e:
+                logging.error(f"Error processing row {i}: {e}")
             self.progress.emit(int(((i + 1) / total) * 100))
         return pd.DataFrame(filtered_rows)
 
@@ -501,8 +579,10 @@ class MainWindow(QMainWindow):
 
         self.worker.filtered_df = filtered_df
 
-        station_ids = filtered_df['StationId'].unique()
-        logging.info(f"StationIds na mapie: {station_ids}")
+        # Grupowanie danych według StationId, LATIuke, LONGuke
+        grouped = filtered_df.groupby(['StationId', 'LATIuke', 'LONGuke'])
+
+        logging.info(f"StationIds na mapie: {grouped.size().index.tolist()}")
 
         user_lat, user_lon = self.worker.location
         map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
@@ -512,25 +592,87 @@ class MainWindow(QMainWindow):
             icon=folium.Icon(color="blue", icon="info-sign")
         ).add_to(map_)
 
-        for _, row in filtered_df.iterrows():
-            tooltip_text = f"StationId: {row['StationId']} | Pasmo: {row['pasmo']} | Standard: {row['standard']}"
+        # Zbiór do logowania nieznanych operatorów
+        unknown_operators = set()
+
+        for (station_id, lat, lon), group in grouped:
+            pasmos = group['pasmo'].unique()
+            siec_ids = group['siec_id'].unique()
+
+            # Normalizacja nazw operatorów: usunięcie znaków specjalnych, małe litery
+            operators = [normalize_operator_name(siec_id) for siec_id in siec_ids if isinstance(siec_id, str)]
+
+            # Filtracja operatorów, którzy są w OPERATOR_COLORS
+            valid_operators = [op for op in operators if op in OPERATOR_COLORS]
+
+            # Zbiór operatorów, którzy nie są w OPERATOR_COLORS
+            invalid_operators = [op for op in operators if op not in OPERATOR_COLORS]
+
+            if invalid_operators:
+                unknown_operators.update(invalid_operators)
+
+            # Usuń duplikaty i tylko operatorzy zdefiniowani w OPERATOR_COLORS
+            valid_operators = list(set(valid_operators))
+
+            if not valid_operators:
+                # Jeśli nie ma operatorów zdefiniowanych, oznacz jako 'unknown'
+                valid_operators = ['unknown']
+
+            # Konwersja wszystkich pasmo na stringi
+            pasmo_str = ', '.join(map(str, pasmos))
+            # Upewnij się, że operatorzy są w formacie tytułowym
+            standard_str = ', '.join([op.title() for op in valid_operators])
+
+            # Tworzenie SVG ikon
+            icon = create_svg_icon(valid_operators, OPERATOR_COLORS, size=30)
+
+            tooltip_text = f"StationId: {station_id} | Pasmo: {pasmo_str} | Operator: {standard_str}"
             popup_html = f"""
-            <b>Station ID:</b> {row['StationId']}<br>
-            <b>Pasmo:</b> {row['pasmo']}<br>
-            <b>Standard:</b> {row['standard']}<br>
+            <b>Station ID:</b> {station_id}<br>
+            <b>Pasmo:</b> {pasmo_str}<br>
+            <b>Operator:</b> {standard_str}<br>
             """
+
             folium.Marker(
-                [row['LATIuke'], row['LONGuke']],
+                [lat, lon],
                 tooltip=tooltip_text,
                 popup=popup_html,
-                icon=folium.Icon(color="red", icon="info-sign")
+                icon=icon
             ).add_to(map_)
 
+        # Dodanie legendy
+        legend_html = '''
+            <div style="
+                position: fixed; 
+                bottom: 50px; left: 50px; width: 150px; height: 160px; 
+                border:2px solid grey; z-index:9999; font-size:14px;
+                background-color:white;
+                padding: 10px;
+                ">
+                <b>Legenda Operatorów</b><br>
+                <i style="background-color:pink; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;T-Mobile<br>
+                <i style="background-color:purple; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Play<br>
+                <i style="background-color:orange; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Orange<br>
+                <i style="background-color:green; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Plus<br>
+                <i style="background-color:gray; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Unknown
+            </div>
+        '''
+        map_.get_root().html.add_child(folium.Element(legend_html))
+
+        # Jeśli są nieznani operatorzy, zaloguj ich
+        if unknown_operators:
+            logging.warning(f"Nieznani operatorzy: {', '.join(unknown_operators)}")
+            # Możesz też wyświetlić komunikat użytkownikowi
+            unknown_str = ', '.join([op.title() for op in unknown_operators])
+            self.status_label.setText(f"Nieznani operatorzy znalezieni: {unknown_str}")
+        else:
+            self.status_label.setText("Mapa wyświetlona pomyślnie.")
+
+        # Renderowanie mapy do HTML
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)
-        self.status_label.setText("Mapa wyświetlona pomyślnie.")
 
     def run_pdf_worker(self):
         filtered_df = getattr(self.worker, 'filtered_df', pd.DataFrame())
