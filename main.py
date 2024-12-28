@@ -17,7 +17,7 @@ import pdfplumber
 import re
 import csv
 from urllib.parse import urlencode
-
+import json
 # Ustawienia logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -513,9 +513,16 @@ class MainWindow(QMainWindow):
         ).add_to(map_)
 
         for _, row in filtered_df.iterrows():
+            tooltip_text = f"StationId: {row['StationId']} | Pasmo: {row['pasmo']} | Standard: {row['standard']}"
+            popup_html = f"""
+            <b>Station ID:</b> {row['StationId']}<br>
+            <b>Pasmo:</b> {row['pasmo']}<br>
+            <b>Standard:</b> {row['standard']}<br>
+            """
             folium.Marker(
                 [row['LATIuke'], row['LONGuke']],
-                tooltip=f"StationId: {row['StationId']}",
+                tooltip=tooltip_text,
+                popup=popup_html,
                 icon=folium.Icon(color="red", icon="info-sign")
             ).add_to(map_)
 
