@@ -571,109 +571,265 @@ class MainWindow(QMainWindow):
     def update_progress(self, value):
         self.progress_bar.setValue(value)
 
+    # def display_map(self, filtered_df):
+    #     self.progress_bar.setValue(100)
+    #     if filtered_df.empty:
+    #         self.status_label.setText("Brak danych, spróbój ponownie później.")
+    #         return
+
+    #     self.worker.filtered_df = filtered_df
+
+    #     # Grupowanie danych według StationId, LATIuke, LONGuke
+    #     grouped = filtered_df.groupby(['StationId', 'LATIuke', 'LONGuke'])
+
+    #     logging.info(f"StationIds na mapie: {grouped.size().index.tolist()}")
+
+    #     user_lat, user_lon = self.worker.location
+    #     map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
+    #     folium.Marker(
+    #         [user_lat, user_lon],
+    #         tooltip="Podany adres",
+    #         icon=folium.Icon(color="blue", icon="info-sign")
+    #     ).add_to(map_)
+
+    #     # Zbiór do logowania nieznanych operatorów
+    #     unknown_operators = set()
+
+    #     for (station_id, lat, lon), group in grouped:
+    #         pasmos = group['pasmo'].unique()
+    #         siec_ids = group['siec_id'].unique()
+
+    #         # Normalizacja nazw operatorów: usunięcie znaków specjalnych, małe litery
+    #         operators = [normalize_operator_name(siec_id) for siec_id in siec_ids if isinstance(siec_id, str)]
+
+    #         # Filtracja operatorów, którzy są w OPERATOR_COLORS
+    #         valid_operators = [op for op in operators if op in OPERATOR_COLORS]
+
+    #         # Zbiór operatorów, którzy nie są w OPERATOR_COLORS
+    #         invalid_operators = [op for op in operators if op not in OPERATOR_COLORS]
+
+    #         if invalid_operators:
+    #             unknown_operators.update(invalid_operators)
+
+    #         # Usuń duplikaty i tylko operatorzy zdefiniowani w OPERATOR_COLORS
+    #         valid_operators = list(set(valid_operators))
+
+    #         if not valid_operators:
+    #             # Jeśli nie ma operatorów zdefiniowanych, oznacz jako 'unknown'
+    #             valid_operators = ['unknown']
+
+    #         # Konwersja wszystkich pasmo na stringi
+    #         pasmo_str = ', '.join(map(str, pasmos))
+    #         # Upewnij się, że operatorzy są w formacie tytułowym
+    #         standard_str = ', '.join([op.title() for op in valid_operators])
+
+    #         # Tworzenie SVG ikon
+    #         icon = create_svg_icon(valid_operators, OPERATOR_COLORS, size=30)
+
+    #         tooltip_text = f"StationId: {station_id} | Pasmo: {pasmo_str} | Operator: {standard_str}"
+    #         popup_html = f"""
+    #         <b>Station ID:</b> {station_id}<br>
+    #         <b>Pasmo:</b> {pasmo_str}<br>
+    #         <b>Operator:</b> {standard_str}<br>
+    #         """
+
+    #         folium.Marker(
+    #             [lat, lon],
+    #             tooltip=tooltip_text,
+    #             popup=popup_html,
+    #             icon=icon
+    #         ).add_to(map_)
+
+    #     # Dodanie legendy
+    #     legend_html = '''
+    #         <div style="
+    #             position: fixed; 
+    #             bottom: 50px; left: 50px; width: 150px; height: 160px; 
+    #             border:2px solid grey; z-index:9999; font-size:14px;
+    #             background-color:white;
+    #             padding: 10px;
+    #             ">
+    #             <b>Legenda Operatorów</b><br>
+    #             <i style="background-color:pink; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;T-Mobile<br>
+    #             <i style="background-color:purple; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Play<br>
+    #             <i style="background-color:orange; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Orange<br>
+    #             <i style="background-color:green; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Plus<br>
+    #             <i style="background-color:gray; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Unknown
+    #         </div>
+    #     '''
+    #     map_.get_root().html.add_child(folium.Element(legend_html))
+
+    #     # Jeśli są nieznani operatorzy, zaloguj ich
+    #     if unknown_operators:
+    #         logging.warning(f"Nieznani operatorzy: {', '.join(unknown_operators)}")
+    #         # Możesz też wyświetlić komunikat użytkownikowi
+    #         unknown_str = ', '.join([op.title() for op in unknown_operators])
+    #         self.status_label.setText(f"Nieznani operatorzy znalezieni: {unknown_str}")
+    #     else:
+    #         self.status_label.setText("Mapa wyświetlona pomyślnie.")
+
+    #     # Renderowanie mapy do HTML
+    #     data = io.BytesIO()
+    #     map_.save(data, close_file=False)
+    #     self.map_view.setHtml(data.getvalue().decode())
+    #     self.progress_bar.setValue(0)
+    # def display_map(self, filtered_df):
+    #     self.progress_bar.setValue(100)
+    #     if filtered_df.empty:
+    #         self.status_label.setText("Brak danych, spróbój ponownie później.")
+    #         return
+
+    #     self.worker.filtered_df = filtered_df
+
+    #     # Grupowanie danych według StationId, LATIuke, LONGuke
+    #     grouped = filtered_df.groupby(['StationId', 'LATIuke', 'LONGuke'])
+
+    #     logging.info(f"StationIds na mapie: {grouped.size().index.tolist()}")
+
+    #     user_lat, user_lon = self.worker.location
+    #     map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
+    #     folium.Marker(
+    #         [user_lat, user_lon],
+    #         tooltip="Podany adres",
+    #         icon=folium.Icon(color="blue", icon="info-sign")
+    #     ).add_to(map_)
+
+    #     # Zbiór do logowania nieznanych operatorów
+    #     unknown_operators = set()
+
+    #     for (station_id, lat, lon), group in grouped:
+    #         pasmos = group['pasmo'].unique()
+    #         siec_ids = group['siec_id'].unique()
+
+    #         # Normalizacja nazw operatorów: usunięcie znaków specjalnych, małe litery
+    #         operators = [normalize_operator_name(siec_id) for siec_id in siec_ids if isinstance(siec_id, str)]
+
+    #         # Filtracja operatorów, którzy są w OPERATOR_COLORS
+    #         valid_operators = [op for op in operators if op in OPERATOR_COLORS]
+
+    #         # Zbiór operatorów, którzy nie są w OPERATOR_COLORS
+    #         invalid_operators = [op for op in operators if op not in OPERATOR_COLORS]
+
+    #         if invalid_operators:
+    #             unknown_operators.update(invalid_operators)
+
+    #         # Usuń duplikaty i tylko operatorzy zdefiniowani w OPERATOR_COLORS
+    #         valid_operators = list(set(valid_operators))
+
+    #         if not valid_operators:
+    #             # Jeśli nie ma operatorów zdefiniowanych, oznacz jako 'unknown'
+    #             valid_operators = ['unknown']
+
+    #         # Konwersja wszystkich pasmo na stringi
+    #         pasmo_str = ', '.join(map(str, pasmos))
+    #         # Upewnij się, że operatorzy są w formacie tytułowym
+    #         standard_str = ', '.join([op.title() for op in valid_operators])
+
+    #         # Tworzenie SVG ikon
+    #         icon = create_svg_icon(valid_operators, OPERATOR_COLORS, size=30)
+
+    #         tooltip_text = f"StationId: {station_id} | Pasmo: {pasmo_str} | Operator: {standard_str}"
+    #         popup_html = f"""
+    #         <b>Station ID:</b> {station_id}<br>
+    #         <b>Pasmo:</b> {pasmo_str}<br>
+    #         <b>Operator:</b> {standard_str}<br>
+    #         """
+
+    #         folium.Marker(
+    #             [lat, lon],
+    #             tooltip=tooltip_text,
+    #             popup=popup_html,
+    #             icon=icon
+    #         ).add_to(map_)
+
+    #     # Dodanie legendy
+    #     legend_html = '''
+    #         <div style="
+    #             position: fixed; 
+    #             bottom: 50px; left: 50px; width: 150px; height: 160px; 
+    #             border:2px solid grey; z-index:9999; font-size:14px;
+    #             background-color:white;
+    #             padding: 10px;
+    #             ">
+    #             <b>Legenda Operatorów</b><br>
+    #             <i style="background-color:pink; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;T-Mobile<br>
+    #             <i style="background-color:purple; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Play<br>
+    #             <i style="background-color:orange; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Orange<br>
+    #             <i style="background-color:green; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Plus<br>
+    #             <i style="background-color:gray; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Unknown
+    #         </div>
+    #     '''
+    #     map_.get_root().html.add_child(folium.Element(legend_html))
+
+    #     # Jeśli są nieznani operatorzy, zaloguj ich
+    #     if unknown_operators:
+    #         logging.warning(f"Nieznani operatorzy: {', '.join(unknown_operators)}")
+    #         # Możesz też wyświetlić komunikat użytkownikowi
+    #         unknown_str = ', '.join([op.title() for op in unknown_operators])
+    #         self.status_label.setText(f"Nieznani operatorzy znalezieni: {unknown_str}")
+    #     else:
+    #         self.status_label.setText("Mapa wyświetlona pomyślnie.")
+
+    #     # Renderowanie mapy do HTML
+    #     data = io.BytesIO()
+    #     map_.save(data, close_file=False)
+    #     self.map_view.setHtml(data.getvalue().decode())
+    #     self.progress_bar.setValue(0)
     def display_map(self, filtered_df):
         self.progress_bar.setValue(100)
+
         if filtered_df.empty:
             self.status_label.setText("Brak danych, spróbój ponownie później.")
             return
 
-        self.worker.filtered_df = filtered_df
-
-        # Grupowanie danych według StationId, LATIuke, LONGuke
-        grouped = filtered_df.groupby(['StationId', 'LATIuke', 'LONGuke'])
-
-        logging.info(f"StationIds na mapie: {grouped.size().index.tolist()}")
-
         user_lat, user_lon = self.worker.location
         map_ = folium.Map(location=[user_lat, user_lon], zoom_start=12)
+
         folium.Marker(
             [user_lat, user_lon],
             tooltip="Podany adres",
             icon=folium.Icon(color="blue", icon="info-sign")
         ).add_to(map_)
 
-        # Zbiór do logowania nieznanych operatorów
-        unknown_operators = set()
+        operator_colors = {
+            'T-Mobile': 'pink',
+            'Orange': 'orange',
+            'Play': 'purple',
+            'Plus': 'green'
+        }
 
-        for (station_id, lat, lon), group in grouped:
-            pasmos = group['pasmo'].unique()
-            siec_ids = group['siec_id'].unique()
+        grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
 
-            # Normalizacja nazw operatorów: usunięcie znaków specjalnych, małe litery
-            operators = [normalize_operator_name(siec_id) for siec_id in siec_ids if isinstance(siec_id, str)]
+        for (lat, lon), group in grouped:
+            operator_info = []
+            color_blocks = []
+            for operator, sub_group in group.groupby('siec_id'):
+                pasma_technologie = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
+                details = [f"{pasmo} ({technologie})" for pasmo, technologie in pasma_technologie.items()]
+                operator_info.append(f"{operator}: " + '; '.join(details))
+                color = operator_colors.get(operator, 'blue')
+                color_blocks.append(f'<div style="flex: 1; background-color: {color};"></div>')
 
-            # Filtracja operatorów, którzy są w OPERATOR_COLORS
-            valid_operators = [op for op in operators if op in OPERATOR_COLORS]
+            tooltip_text = '<br>'.join(operator_info)
 
-            # Zbiór operatorów, którzy nie są w OPERATOR_COLORS
-            invalid_operators = [op for op in operators if op not in OPERATOR_COLORS]
-
-            if invalid_operators:
-                unknown_operators.update(invalid_operators)
-
-            # Usuń duplikaty i tylko operatorzy zdefiniowani w OPERATOR_COLORS
-            valid_operators = list(set(valid_operators))
-
-            if not valid_operators:
-                # Jeśli nie ma operatorów zdefiniowanych, oznacz jako 'unknown'
-                valid_operators = ['unknown']
-
-            # Konwersja wszystkich pasmo na stringi
-            pasmo_str = ', '.join(map(str, pasmos))
-            # Upewnij się, że operatorzy są w formacie tytułowym
-            standard_str = ', '.join([op.title() for op in valid_operators])
-
-            # Tworzenie SVG ikon
-            icon = create_svg_icon(valid_operators, OPERATOR_COLORS, size=30)
-
-            tooltip_text = f"StationId: {station_id} | Pasmo: {pasmo_str} | Operator: {standard_str}"
-            popup_html = f"""
-            <b>Station ID:</b> {station_id}<br>
-            <b>Pasmo:</b> {pasmo_str}<br>
-            <b>Operator:</b> {standard_str}<br>
-            """
+            html = f'''
+                <div style="width: 30px; height: 30px; display: flex; border-radius: 50%; border: 2px solid #000;">
+                    {''.join(color_blocks)}
+                </div>
+            '''
+            icon = folium.DivIcon(html=html)
 
             folium.Marker(
                 [lat, lon],
                 tooltip=tooltip_text,
-                popup=popup_html,
                 icon=icon
             ).add_to(map_)
 
-        # Dodanie legendy
-        legend_html = '''
-            <div style="
-                position: fixed; 
-                bottom: 50px; left: 50px; width: 150px; height: 160px; 
-                border:2px solid grey; z-index:9999; font-size:14px;
-                background-color:white;
-                padding: 10px;
-                ">
-                <b>Legenda Operatorów</b><br>
-                <i style="background-color:pink; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;T-Mobile<br>
-                <i style="background-color:purple; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Play<br>
-                <i style="background-color:orange; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Orange<br>
-                <i style="background-color:green; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Plus<br>
-                <i style="background-color:gray; width:10px; height:10px; display:inline-block; border-radius:50%;"></i>&nbsp;Unknown
-            </div>
-        '''
-        map_.get_root().html.add_child(folium.Element(legend_html))
-
-        # Jeśli są nieznani operatorzy, zaloguj ich
-        if unknown_operators:
-            logging.warning(f"Nieznani operatorzy: {', '.join(unknown_operators)}")
-            # Możesz też wyświetlić komunikat użytkownikowi
-            unknown_str = ', '.join([op.title() for op in unknown_operators])
-            self.status_label.setText(f"Nieznani operatorzy znalezieni: {unknown_str}")
-        else:
-            self.status_label.setText("Mapa wyświetlona pomyślnie.")
-
-        # Renderowanie mapy do HTML
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)
-
+        self.status_label.setText("")
     def run_pdf_worker(self):
         filtered_df = getattr(self.worker, 'filtered_df', pd.DataFrame())
         if filtered_df.empty:
