@@ -64,7 +64,7 @@ OPERATOR_COLORS = {
     normalize_operator_name('Plus'): 'green'
 }
 
-RADIUS_KM = 1  # Promień filtrowania nadajników w kilometrach
+RADIUS_KM = 7  # Promień filtrowania nadajników w kilometrach
 
 # Lista możliwych nagłówków kolumn zawierających azymuty
 AZIMUTH_HEADERS = [
