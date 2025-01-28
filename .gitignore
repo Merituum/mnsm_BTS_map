@@ -18,3 +18,4 @@ downloaded_files/
 antenna_data.csv
 extracted_texts/
 antenna_data_*
+*.txt

@@ -2,7 +2,7 @@ import sys
 import requests
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget,
-    QLineEdit, QPushButton, QProgressBar, QLabel, QMessageBox
+    QLineEdit, QPushButton, QProgressBar, QLabel, QMessageBox, QSpinBox
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -64,7 +64,7 @@ OPERATOR_COLORS = {
     normalize_operator_name('Plus'): 'green'
 }
 
-RADIUS_KM = 7  # Promień filtrowania nadajników w kilometrach
+
 
 # Lista możliwych nagłówków kolumn zawierających azymuty
 AZIMUTH_HEADERS = [
@@ -119,12 +119,12 @@ class Worker(QThread):
     progress = pyqtSignal(int)
     result = pyqtSignal(pd.DataFrame)
 
-    def __init__(self, location, wojewodztwo):
+    def __init__(self, location, wojewodztwo, radius):
         super().__init__()
         self.location = location
         self.wojewodztwo = wojewodztwo
+        self.radius_km = radius
         self.filtered_df = pd.DataFrame()
-
     def run(self):
         try:
             df = pd.read_csv(
@@ -139,7 +139,7 @@ class Worker(QThread):
             df['siec_id'] = df['siec_id'].astype(str)    # Upewnienie się, że 'siec_id' jest stringiem
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
-            self.filtered_df = self.filter_transmitters_by_location(df, self.location, RADIUS_KM)
+            self.filtered_df = self.filter_transmitters_by_location(df, self.location, self.radius_km)
             self.result.emit(self.filtered_df)
         except Exception as e:
             logging.error(f"Error reading CSV file: {e}")
@@ -512,7 +512,12 @@ class MainWindow(QMainWindow):
         self.api_key_input = QLineEdit(self)
         self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
         self.layout.addWidget(self.api_key_input)
-
+        self.radius_spinbox = QSpinBox(self)
+        self.radius_spinbox.setRange(1, 10)  # Zakres od 1 do 7
+        self.radius_spinbox.setValue(1)  # Domyślna wartość
+        self.radius_spinbox.setPrefix("Promień[km]: ")
+        
+        self.layout.addWidget(self.radius_spinbox)
         self.show_map_button = QPushButton("Wyświetl mapę", self)
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
@@ -537,12 +542,13 @@ class MainWindow(QMainWindow):
     def show_map(self):
         address = self.address_input.text()
         api_key = self.api_key_input.text()
+        radius = self.radius_spinbox.value()
         if not api_key:
             self.status_label.setText("Klucz API, który został podany jest niepoprawny.")
             return
         location, wojewodztwo = self.get_location_from_opencage(address, api_key)
         if location and wojewodztwo:
-            self.start_worker(location, wojewodztwo)
+            self.start_worker(location, wojewodztwo, radius)
         else:
             self.status_label.setText("Nie udało się pobrać lokalizacji.")
 
@@ -562,8 +568,8 @@ class MainWindow(QMainWindow):
             logging.error(f"Błąd podczas geokodowania: {e}")
         return None, None
 
-    def start_worker(self, location, wojewodztwo):
-        self.worker = Worker(location, wojewodztwo)
+    def start_worker(self, location, wojewodztwo, radius):
+        self.worker = Worker(location, wojewodztwo, radius)
         self.worker.progress.connect(self.update_progress)
         self.worker.result.connect(self.display_map)
         self.worker.start()
