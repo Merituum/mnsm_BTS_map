@@ -128,7 +128,8 @@ class Worker(QThread):
     def run(self):
         try:
             df = pd.read_csv(
-                'output.csv',
+                #DATABASE MADE BY BTSEARCH - beta.btsearch.pl
+                'bts_data.csv',
                 delimiter=';',          # Użyj tabulatora jako separatora
                 encoding='utf-8-sig',    # Obsługa BOM
                 usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard']
