@@ -19,6 +19,14 @@ import csv
 from urllib.parse import urlencode
 from math import cos, sin
 import json
+import configparser
+
+config = configparser.ConfigParser()
+config.read('config.ini')
+DATABASE_PATH = config.get('Paths', 'database_path', fallback='output.csv')
+PDF_DIR = config.get('Paths', 'pdf_dir', fallback='pdfs')
+EXTRACTED_TEXT_DIR = config.get('Paths', 'extracted_text_dir', fallback='extracted_texts')
+PDF_PAGE_NR = config.getint('Settings', 'pdf_page_nr', fallback=3)
 # Ustawienia logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
