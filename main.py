@@ -154,22 +154,18 @@ class Worker(QThread):
             self.result.emit(pd.DataFrame())
 
     def filter_transmitters_by_location(self, df, location, radius_km):
-        total = len(df)
-        filtered_rows = []
-        for i, row in df.iterrows():
-            try:
-                transmitter_location = (row['LATIuke'], row['LONGuke'])
-                distance = geodesic(location, transmitter_location).km
-                if distance <= radius_km:
-                    # Upewnij się, że 'pasmo' i 'siec_id' są stringami
-                    row['pasmo'] = str(row['pasmo'])
-                    row['siec_id'] = str(row['siec_id'])
-                    filtered_rows.append(row)
-            except Exception as e:
-                logging.error(f"Error processing row {i}: {e}")
-            self.progress.emit(int(((i + 1) / total) * 100))
-        return pd.DataFrame(filtered_rows)
+   
+        df['distance'] = df.apply (
+            lambda row: geodesic(location, (row['LATIuke'], row['LONGuke'])).km, axis=1
+        )
+        filtered_df = df[df['distance'] <= radius_km].drop(columns=['distance'])
 
+        total = len(df)
+        for i in range(0,101,10):
+            self.progress.emit(i)
+            # time.sleep(0.01)
+
+        return filtered_df
 
 class PdfWorker(QThread):
     progress = pyqtSignal(int)
