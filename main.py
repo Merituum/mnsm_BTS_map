@@ -197,7 +197,7 @@ class PdfWorker(QThread):
         Pobiera informacje o nadajniku na podstawie jego ID.
         """
         url = f"https://si2pem.gov.pl/api/public/base_station?search={base_station_id}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=15) # im affraid SI2pem GOV wont be happy if there is no delay
         if response.status_code != 200:
             logging.error(f"Błąd HTTP {response.status_code} podczas pobierania informacji o nadajniku.")
             return None
