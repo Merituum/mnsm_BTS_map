@@ -17,16 +17,18 @@ import pdfplumber
 import re
 import csv
 from urllib.parse import urlencode
-from math import cos, sin
+from math import cos, sin, radians  # Zmieniono z "from math import *" na konkretne importy
 import json
 import configparser
 
+# Konfiguracja
 config = configparser.ConfigParser()
 config.read('config.ini')
 DATABASE_PATH = config.get('Paths', 'database_path', fallback='output.csv')
 PDF_DIR = config.get('Paths', 'pdf_dir', fallback='pdfs')
 EXTRACTED_TEXT_DIR = config.get('Paths', 'extracted_text_dir', fallback='extracted_texts')
 PDF_PAGE_NR = config.getint('Settings', 'pdf_page_nr', fallback=3)
+
 # Ustawienia logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -72,8 +74,6 @@ OPERATOR_COLORS = {
     normalize_operator_name('Plus'): 'green'
 }
 
-
-
 # Lista możliwych nagłówków kolumn zawierających azymuty
 AZIMUTH_HEADERS = [
     'Azymut H', 'Azimuth H', 'Kierunek H', 'Direction H',
@@ -92,24 +92,20 @@ def create_svg_icon(operators, operator_colors, size=30):
     Returns:
         folium.DivIcon: Utworzony DivIcon z SVG.
     """
-    # Definicja podstawowego okręgu
     svg = f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
     svg += f'<circle cx="{size/2}" cy="{size/2}" r="{size/2 - 1}" fill="white" stroke="black" stroke-width="1"/>'
 
-    # Jeśli tylko jeden operator, wypełnij cały okrąg kolorem
     if len(operators) == 1:
         color = operator_colors.get(operators[0], 'gray')
         svg = f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
         svg += f'<circle cx="{size/2}" cy="{size/2}" r="{size/2 - 1}" fill="{color}" stroke="black" stroke-width="1"/>'
     else:
-        # Dla wielu operatorów, podziel okrąg na części
         num_operators = len(operators)
         angle_step = 360 / num_operators
         for i, operator in enumerate(operators):
             color = operator_colors.get(operator, 'gray')
             start_angle = i * angle_step
             end_angle = (i + 1) * angle_step
-            # Oblicz współrzędne punktów
             start_rad = start_angle * (3.141592653589793 / 180)
             end_rad = end_angle * (3.141592653589793 / 180)
             x1 = size/2 + (size/2 - 1) * cos(start_rad)
@@ -120,7 +116,6 @@ def create_svg_icon(operators, operator_colors, size=30):
             svg += f'<path d="M {size/2},{size/2} L {x1},{y1} A {size/2 - 1},{size/2 - 1} 0 {large_arc},1 {x2},{y2} Z" fill="{color}" stroke="black" stroke-width="1"/>'
 
     svg += '</svg>'
-
     return folium.DivIcon(html=svg)
 
 class Worker(QThread):
@@ -133,18 +128,28 @@ class Worker(QThread):
         self.wojewodztwo = wojewodztwo
         self.radius_km = radius
         self.filtered_df = pd.DataFrame()
+
     def run(self):
         try:
             df = pd.read_csv(
                 'output.csv',
-                delimiter=';',          # Użyj tabulatora jako separatora
-                encoding='utf-8-sig',    # Obsługa BOM
-                usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard']
+                delimiter=';',
+                encoding='utf-8-sig',
+                usecols=['siec_id', 'LONGuke', 'LATIuke', 'StationId', 'wojewodztwo_id', 'pasmo', 'standard'],
+                dtype={
+                    'siec_id': str,
+                    'LONGuke': float,
+                    'LATIuke': float,
+                    'StationId': str,  # Wymuszenie typu str dla StationId
+                    'wojewodztwo_id': str,
+                    'pasmo': str,
+                    'standard': str
+                }
             )
             logging.info(f"Kolumny w CSV: {df.columns.tolist()}")
             df['StationId'] = df['StationId'].astype(str)
-            df['pasmo'] = df['pasmo'].astype(str)        # Konwersja na string
-            df['siec_id'] = df['siec_id'].astype(str)    # Upewnienie się, że 'siec_id' jest stringiem
+            df['pasmo'] = df['pasmo'].astype(str)
+            df['siec_id'] = df['siec_id'].astype(str)
             mapped_wojewodztwo = WOJEWODZTW_MAP.get(self.wojewodztwo, self.wojewodztwo)
             df = df[df['wojewodztwo_id'] == mapped_wojewodztwo]
             self.filtered_df = self.filter_transmitters_by_location(df, self.location, self.radius_km)
@@ -154,16 +159,14 @@ class Worker(QThread):
             self.result.emit(pd.DataFrame())
 
     def filter_transmitters_by_location(self, df, location, radius_km):
-   
-        df['distance'] = df.apply (
+        df['distance'] = df.apply(
             lambda row: geodesic(location, (row['LATIuke'], row['LONGuke'])).km, axis=1
         )
         filtered_df = df[df['distance'] <= radius_km].drop(columns=['distance'])
 
         total = len(df)
-        for i in range(0,101,10):
+        for i in range(0, 101, 10):
             self.progress.emit(i)
-            # time.sleep(0.01)
 
         return filtered_df
 
@@ -181,6 +184,7 @@ class PdfWorker(QThread):
             total = len(self.station_ids)
             processed = 0
             for station_id in self.station_ids:
+                station_id = str(station_id)  # Upewnij się, że station_id jest ciągiem znaków
                 info = self.process_station(station_id)
                 if info:
                     self.extracted_data.append(info)
@@ -191,13 +195,12 @@ class PdfWorker(QThread):
             logging.error(f"Error in PdfWorker: {e}")
             self.result.emit([])
 
-    # Integracja funkcji z dostarczonego skryptu
     def get_base_station_info(self, base_station_id):
         """
         Pobiera informacje o nadajniku na podstawie jego ID.
         """
         url = f"https://si2pem.gov.pl/api/public/base_station?search={base_station_id}"
-        response = requests.get(url, timeout=15) # im affraid SI2pem GOV wont be happy if there is no delay
+        response = requests.get(url, timeout=15)
         if response.status_code != 200:
             logging.error(f"Błąd HTTP {response.status_code} podczas pobierania informacji o nadajniku.")
             return None
@@ -219,7 +222,7 @@ class PdfWorker(QThread):
             'request': 'GetFeature',
             'typeName': feature_type,
             'outputFormat': output_format,
-            'bbox': f"{bbox[2]},{bbox[0]},{bbox[3]},{bbox[1]},EPSG:4326"  # minx,miny,maxx,maxy,CRS
+            'bbox': f"{bbox[2]},{bbox[0]},{bbox[3]},{bbox[1]},EPSG:4326"
         }
         query_string = urlencode(params)
         return f"{base_url}?{query_string}"
@@ -248,7 +251,6 @@ class PdfWorker(QThread):
         features = geojson_data.get('features', [])
         for feature in features:
             properties = feature.get('properties', {})
-            # Możliwe, że URL do PDF znajduje się pod innym kluczem
             pdf_url = properties.get('url') or properties.get('pdf_url') or properties.get('PDF_URL')
             if pdf_url:
                 pdf_urls.add(pdf_url)
@@ -268,7 +270,7 @@ class PdfWorker(QThread):
         with open(save_path, 'wb') as f:
             f.write(response.content)
         logging.info(f"PDF zapisany jako: {save_path}")
-        return save_path  # Return the path for further processing
+        return save_path
 
     def extract_information_from_pdf(self, pdf_path, expected_station_id):
         """
@@ -285,7 +287,6 @@ class PdfWorker(QThread):
 
         pdf = pdfplumber.open(pdf_path)
 
-        # Sprawdź, czy PDF ma co najmniej 3 strony
         if len(pdf.pages) < 3:
             logging.warning(f"PDF {pdf_path} ma mniej niż 3 strony.")
             pdf.close()
@@ -295,9 +296,8 @@ class PdfWorker(QThread):
                 'Azymuts': 'Nie znaleziono tabel'
             }
 
-        # Przetwarzaj tylko trzecią stronę
         page_number = 3
-        page = pdf.pages[2]  # Indeksowanie od 0
+        page = pdf.pages[2]
         text = page.extract_text()
         if not text:
             logging.error(f"Brak tekstu na stronie {page_number} w PDF: {pdf_path}")
@@ -308,14 +308,12 @@ class PdfWorker(QThread):
                 'Azymuts': 'Brak tekstu'
             }
 
-        # Zapisz wyciągnięty tekst do pliku dla debugowania
         text_save_path = os.path.join('extracted_texts', f"{os.path.basename(pdf_path)}_page_{page_number}.txt")
         os.makedirs('extracted_texts', exist_ok=True)
         with open(text_save_path, 'w', encoding='utf-8') as f:
             f.write(text)
         logging.debug(f"Zapisano wyciągnięty tekst ze strony {page_number} w PDF: {pdf_path} do {text_save_path}")
 
-        # Sprawdź, czy ID stacji jest obecne na trzeciej stronie
         if expected_station_id not in text:
             logging.error(f"ID stacji {expected_station_id} nie znaleziono na trzeciej stronie PDF: {pdf_path}")
             pdf.close()
@@ -325,7 +323,6 @@ class PdfWorker(QThread):
                 'Azymuts': 'ID stacji nie znaleziono'
             }
 
-        # Ekstrakcja tabeli
         tables = page.extract_tables()
         if not tables:
             logging.warning(f"Nie znaleziono tabel na stronie {page_number} w PDF: {pdf_path}")
@@ -336,7 +333,6 @@ class PdfWorker(QThread):
                 'Azymuts': 'Nie znaleziono tabel'
             }
 
-        # Zakładam, że interesująca tabela jest pierwszą tabelą na stronie
         table = tables[0]
         headers = table[0]
         normalized_headers = [header.strip().lower() if header else '' for header in headers]
@@ -358,12 +354,11 @@ class PdfWorker(QThread):
         logging.debug(f"Indeksy kolumn z azymutami: {azimuth_col_indices}")
 
         azimuths = []
-        for row in table[1:]:  # Pomijam nagłówki
+        for row in table[1:]:
             for index in azimuth_col_indices:
                 if index < len(row):
                     azimuth_value = row[index].strip() if row[index] else ''
                     if azimuth_value:
-                        # Walidacja formatu azymutu (np. 180°)
                         match = re.match(r'(\d{1,3})\s*°', azimuth_value)
                         if match:
                             az_value = int(match.group(1))
@@ -372,7 +367,7 @@ class PdfWorker(QThread):
                             else:
                                 logging.warning(f"Niewłaściwa wartość azymutu: {azimuth_value} w PDF: {pdf_path}")
                         else:
-                            azimuths.append(azimuth_value)  # Zachowaj oryginalną wartość, jeśli nie pasuje
+                            azimuths.append(azimuth_value)
 
         pdf.close()
 
@@ -428,17 +423,17 @@ class PdfWorker(QThread):
             for entry in data:
                 azimuths = ', '.join(entry['Azymuts']) if isinstance(entry['Azymuts'], list) else entry['Azymuts']
                 writer.writerow([entry['Station ID'], entry['PDF File'], azimuths])
-        logging.info(f"\nDane zostały wyeksportowane do {filename}")
+        logging.info(f"Dane zostały wyeksportowane do {filename}")
 
     def process_station(self, station_id):
         """
         Przetwarza pojedynczy StationId: pobiera informacje, PDF-y i ekstrakcję danych.
         """
+        station_id = str(station_id)  # Upewnij się, że station_id jest ciągiem znaków
         base_station = self.get_base_station_info(station_id)
         if not base_station:
             return None
 
-        # Pobierz bounding box
         bbox = base_station.get('boundingbox', [])
         if len(bbox) != 4:
             logging.error("Nieprawidłowy bounding box.")
@@ -446,7 +441,6 @@ class PdfWorker(QThread):
         min_lat, max_lat, min_lon, max_lon = bbox
         logging.info(f"Bounding box dla StationId {station_id}: {bbox}")
 
-        # Lista warstw do przeszukania
         feature_types = [
             'public:measures_all',
             'public:measures_14_21',
@@ -457,8 +451,6 @@ class PdfWorker(QThread):
         ]
 
         all_pdf_urls = set()
-
-        # Iteruj przez warstwy i zbieraj PDF URL
         for feature_type in feature_types:
             pdf_urls = self.process_feature_type(bbox, feature_type)
             all_pdf_urls.update(pdf_urls)
@@ -469,7 +461,6 @@ class PdfWorker(QThread):
 
         logging.info(f"Łączna liczba unikalnych PDF-ów dla StationId {station_id}: {len(all_pdf_urls)}")
 
-        # Pobierz wszystkie PDF-y równolegle
         downloaded_pdfs = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_url = {executor.submit(self.download_pdf, url): url for url in all_pdf_urls}
@@ -483,7 +474,6 @@ class PdfWorker(QThread):
             logging.info(f"Żaden PDF nie został pomyślnie pobrany dla StationId {station_id}.")
             return None
 
-        # Ekstrahuj informacje z PDF-ów
         extracted_data = []
         for pdf_path in downloaded_pdfs:
             info = self.extract_information_from_pdf(pdf_path, station_id)
@@ -494,17 +484,14 @@ class PdfWorker(QThread):
             logging.info(f"Nie udało się wyekstrahować żadnych informacji z PDF-ów dla StationId {station_id}.")
             return None
 
-        # Eksportuj dane do pliku CSV
         self.export_to_csv(extracted_data, filename=f'antenna_data_{station_id}.csv')
-
         return extracted_data
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("MNSM by Merituum")
-        self.setGeometry(100, 100, 800, 800)  # Zwiększenie wysokości okna dla dodatkowych elementów
+        self.setGeometry(100, 100, 800, 800)
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
@@ -516,12 +503,13 @@ class MainWindow(QMainWindow):
         self.api_key_input = QLineEdit(self)
         self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
         self.layout.addWidget(self.api_key_input)
+
         self.radius_spinbox = QSpinBox(self)
-        self.radius_spinbox.setRange(1, 10)  # Zakres od 1 do 7
-        self.radius_spinbox.setValue(1)  # Domyślna wartość
+        self.radius_spinbox.setRange(1, 10)
+        self.radius_spinbox.setValue(1)
         self.radius_spinbox.setPrefix("Promień[km]: ")
-        
         self.layout.addWidget(self.radius_spinbox)
+
         self.show_map_button = QPushButton("Wyświetl mapę", self)
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
@@ -530,6 +518,10 @@ class MainWindow(QMainWindow):
         self.download_pdf_button.clicked.connect(self.run_pdf_worker)
         self.layout.addWidget(self.download_pdf_button)
 
+        self.clear_map_button = QPushButton("Wyczyść mapę", self)
+        self.clear_map_button.clicked.connect(self.clear_map)
+        self.layout.addWidget(self.clear_map_button)
+
         self.map_view = QWebEngineView(self)
         self.layout.addWidget(self.map_view, 3)
 
@@ -537,11 +529,13 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.progress_bar)
 
         self.pdf_progress_bar = QProgressBar(self)
-        self.pdf_progress_bar.setVisible(False)  # Ukryty domyślnie
+        self.pdf_progress_bar.setVisible(False)
         self.layout.addWidget(self.pdf_progress_bar)
 
         self.status_label = QLabel(self)
         self.layout.addWidget(self.status_label)
+
+        self.worker = None
 
     def show_map(self):
         address = self.address_input.text()
@@ -555,8 +549,17 @@ class MainWindow(QMainWindow):
             self.start_worker(location, wojewodztwo, radius)
         else:
             self.status_label.setText("Nie udało się pobrać lokalizacji.")
-
     def get_location_from_opencage(self, address, api_key):
+        """
+        Pobiera współrzędne geograficzne i województwo na podstawie adresu, używając OpenCage API.
+        
+        Args:
+            address (str): Adres do geokodowania.
+            api_key (str): Klucz API OpenCage.
+            
+        Returns:
+            tuple: ((lat, lon), wojewodztwo) lub (None, None) w przypadku błędu.
+        """
         url = f'https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_key}'
         try:
             response = requests.get(url)
@@ -567,54 +570,89 @@ class MainWindow(QMainWindow):
                 lon = float(data['results'][0]['geometry']['lng'])
                 components = data['results'][0]['components']
                 wojewodztwo = components.get('state', None)
+                logging.info(f"Pobrano lokalizację dla adresu {address}: ({lat}, {lon}), województwo: {wojewodztwo}")
                 return (lat, lon), wojewodztwo
+            else:
+                logging.warning(f"Brak wyników geokodowania dla adresu: {address}")
+                return None, None
         except requests.RequestException as e:
-            logging.error(f"Błąd podczas geokodowania: {e}")
-        return None, None
+            logging.error(f"Błąd podczas geokodowania adresu {address}: {e}")
+            return None, None
 
     def start_worker(self, location, wojewodztwo, radius):
+        """
+        Uruchamia wątek Worker do filtrowania nadajników na podstawie lokalizacji i promienia.
+        
+        Args:
+            location (tuple): Współrzędne (lat, lon).
+            wojewodztwo (str): Nazwa województwa.
+            radius (int): Promień wyszukiwania w kilometrach.
+        """
         self.worker = Worker(location, wojewodztwo, radius)
         self.worker.progress.connect(self.update_progress)
         self.worker.result.connect(self.display_map)
         self.worker.start()
+        logging.info(f"Rozpoczęto filtrowanie nadajników dla lokalizacji {location}, województwo: {wojewodztwo}, promień: {radius} km")
+
     def load_azimuth_data(self, station_id):
         """
-        Wczytywanie danych o azymutach z CSV 
-        """
-        csv_file = os.path.exists(csv_file)
-        if not os.path.exists(csv_file):
-            logging.warning(f"Brak pliku CSV z danymi azymutów dla station ID {station_id}")
-            return []
+        Wczytywanie danych o azymutach z pliku CSV dla danego StationId.
         
+        Args:
+            station_id (str): ID stacji.
+            
+        Returns:
+            list: Lista azymutów (w stopniach) lub pusta lista w przypadku błędu.
+        """
+        station_id = str(station_id)  # Upewnij się, że station_id jest ciągiem znaków
+        csv_file = f'antenna_data_{station_id}.csv'
+        if not os.path.exists(csv_file):
+            logging.warning(f"Brak pliku CSV z danymi azymutów dla StationId {station_id}")
+            return []
+
         azimuths = []
+        logging.info(f"Wczytywanie azymutów z pliku {csv_file}")
         try:
             with open(csv_file, mode='r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    azymuths_str = row.get('Azymuts', '')
-                    if azymuths_str:
-                        # pozdielenie azymutów jako ciąg oddzielony spacjami
-                        azymuth_list = [az.strip() for az in azymuths_str.split(',')]
-                        for az in azymuth_list:
-                            # usuwanie niepotrzebnego znaku - stopien, rzutowanie na float
+                    azymuts_str = row.get('Azymuts', '')
+                    if azymuts_str:
+                        azimuth_list = [az.strip() for az in azymuts_str.split(',')]
+                        for az in azimuth_list:
                             try:
-                                azimuth_value = float(az.replace('°', ' '))
+                                azimuth_value = float(az.replace('°', ''))
                                 if 0 <= azimuth_value <= 360:
                                     azimuths.append(azimuth_value)
+                                    logging.debug(f"Dodano azymut: {azimuth_value} dla StationId {station_id}")
                             except ValueError:
-                                logging.warning(f"Nieprawidłowy format azymutu: {az}")
+                                logging.warning(f"Nieprawidłowy format azymutu: {az} w pliku {csv_file}")
         except Exception as e:
-            logging.error(f"Błąd podczas wczytywania danych azymótw z {csv_file}: {e}")
-            return azimuths
+            logging.error(f"Błąd podczas wczytywania danych azymutów z {csv_file}: {e}")
+        logging.info(f"Wczytano {len(azimuths)} azymutów dla StationId {station_id}")
+        return azimuths
 
     def update_progress(self, value):
+        """
+        Aktualizuje pasek postępu podczas filtrowania nadajników.
+        
+        Args:
+            value (int): Wartość postępu (0-100).
+        """
         self.progress_bar.setValue(value)
 
     def display_map(self, filtered_df):
+        """
+        Wyświetla mapę z nadajnikami i liniami azymutów.
+        
+        Args:
+            filtered_df (pd.DataFrame): Filtrowane dane nadajników.
+        """
         self.progress_bar.setValue(100)
 
         if filtered_df.empty:
-            self.status_label.setText("Brak danych, spróbój ponownie później.")
+            self.status_label.setText("Brak danych, spróbuj ponownie później.")
+            logging.warning("Brak nadajników w podanym promieniu.")
             return
 
         user_lat, user_lon = self.worker.location
@@ -635,12 +673,18 @@ class MainWindow(QMainWindow):
 
         grouped = filtered_df.groupby(['LATIuke', 'LONGuke'])
 
+        # Dynamiczna długość linii azymutów na podstawie promienia
+        radius_km = self.radius_spinbox.value()
+        length = 0.001 * (radius_km / 2)  # Proporcjonalna długość linii
+
         for (lat, lon), group in grouped:
             operator_info = []
             color_blocks = []
+            station_id = group['StationId'].iloc[0]
+            operators = group['siec_id'].unique()  # Lista operatorów dla tego nadajnika
             for operator, sub_group in group.groupby('siec_id'):
-                pasma_technologie = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
-                details = [f"{pasmo} ({technologie})" for pasmo, technologie in pasma_technologie.items()]
+                bands = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
+                details = [f"{pasmo} ({technologie})" for pasmo, technologie in bands.items()]
                 operator_info.append(f"{operator}: " + '; '.join(details))
                 color = operator_colors.get(operator, 'blue')
                 color_blocks.append(f'<div style="flex: 1; background-color: {color};"></div>')
@@ -660,19 +704,47 @@ class MainWindow(QMainWindow):
                 icon=icon
             ).add_to(map_)
 
+            # Wczytaj i wyświetl azymuty
+            azimuths = self.load_azimuth_data(station_id)
+            if azimuths:
+                primary_operator = operators[0]
+                line_color = operator_colors.get(primary_operator, 'red')
+                logging.info(f"Rysowanie azymutów dla StationId {station_id} z kolorem {line_color}")
+                for azimuth in azimuths:
+                    end_lat = lat + length * cos(radians(azimuth))
+                    end_lon = lon + length * sin(radians(azimuth))
+                    folium.PolyLine(
+                        locations=[[lat, lon], [end_lat, end_lon]],
+                        weight=2,
+                        color=line_color,
+                        opacity=0.8,
+                        tooltip=f'Azymut: {azimuth}°'
+                    ).add_to(map_)
+
         data = io.BytesIO()
         map_.save(data, close_file=False)
         self.map_view.setHtml(data.getvalue().decode())
         self.progress_bar.setValue(0)
-        self.status_label.setText("")
+        self.status_label.setText("Mapa z azymutami została wygenerowana.")
+        logging.info(f"Mapa wygenerowana z {len(grouped)} nadajnikami.")
+
     def run_pdf_worker(self):
+        """
+        Uruchamia wątek PdfWorker do pobierania i przetwarzania PDF-ów dla wybranych StationId.
+        """
+        if not hasattr(self, 'worker') or self.worker is None:
+            self.status_label.setText("Najpierw wyświetl mapę, aby wybrać nadajniki.")
+            logging.warning("Próba uruchomienia PdfWorker bez wcześniejszego filtrowania nadajników.")
+            return
+
         filtered_df = getattr(self.worker, 'filtered_df', pd.DataFrame())
         if filtered_df.empty:
             self.status_label.setText("Brak nadajników do pobrania PDF.")
+            logging.warning("Brak nadajników w filtered_df.")
             return
 
         station_ids = filtered_df['StationId'].unique()
-        logging.info(f"Rozpoczynanie pobierania i przetwarzania PDF-ów dla StationIds: {station_ids}")
+        logging.info(f"Przetwarzane StationIds: {list(station_ids)}")
 
         self.pdf_progress_bar.setVisible(True)
         self.pdf_progress_bar.setValue(0)
@@ -683,24 +755,46 @@ class MainWindow(QMainWindow):
         self.pdf_worker.start()
 
     def update_pdf_progress(self, value):
+        """
+        Aktualizuje pasek postępu podczas pobierania i przetwarzania PDF-ów.
+        
+        Args:
+            value (int): Wartość postępu (0-100).
+        """
         self.pdf_progress_bar.setValue(value)
 
     def pdf_processing_finished(self, extracted_data):
+        """
+        Obsługuje zakończenie przetwarzania PDF-ów.
+        
+        Args:
+            extracted_data (list): Lista wyekstrahowanych danych z PDF-ów.
+        """
         self.pdf_progress_bar.setValue(100)
         self.pdf_progress_bar.setVisible(False)
         if not extracted_data:
             self.status_label.setText("Nie udało się pobrać lub przetworzyć PDF-ów.")
+            logging.warning("Brak danych po przetworzeniu PDF-ów.")
             return
 
         self.status_label.setText("PDF-y zostały pobrane i przetworzone pomyślnie.")
-        # Opcjonalnie możesz wyświetlić dane w GUI, np. w tabeli lub oknie dialogowym
-        # Tu wyświetlimy dane w oknie dialogowym
         message = "PDF-y zostały pobrane i przetworzone.\nDane zostały zapisane do plików CSV."
         QMessageBox.information(self, "Sukces", message)
+        logging.info(f"Pomyślnie przetworzono {len(extracted_data)} PDF-ów.")
 
+    def clear_map(self):
+        """
+        Czyści mapę i resetuje dane.
+        """
+        self.map_view.setHtml("")
+        self.progress_bar.setValue(0)
+        self.pdf_progress_bar.setValue(0)
+        self.status_label.setText("Mapa została wyczyszczona.")
+        self.worker = None
+        logging.info("Mapa i dane zostały wyczyszczone.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec_()) 
