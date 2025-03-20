@@ -675,7 +675,7 @@ class MainWindow(QMainWindow):
 
         # Dynamiczna długość linii azymutów na podstawie promienia
         radius_km = self.radius_spinbox.value()
-        length = 0.001 * (radius_km / 2)  # Proporcjonalna długość linii
+        length = 0.01 * (radius_km / 2)  # Proporcjonalna długość linii
 
         for (lat, lon), group in grouped:
             operator_info = []
@@ -713,10 +713,19 @@ class MainWindow(QMainWindow):
                 for azimuth in azimuths:
                     end_lat = lat + length * cos(radians(azimuth))
                     end_lon = lon + length * sin(radians(azimuth))
+                     # Rysuj czarną linię jako obramowanie (grubsza)
                     folium.PolyLine(
                         locations=[[lat, lon], [end_lat, end_lon]],
-                        weight=2,
-                        color=line_color,
+                        weight=4,  # Grubsza linia jako obramowanie
+                        color='black',  # Kolor obramowania
+                        opacity=0.8,
+                        tooltip=f'Azymut: {azimuth}°'
+                    ).add_to(map_)
+                    # Rysuj linię w kolorze operatora (cieńsza, na wierzchu)
+                    folium.PolyLine(
+                        locations=[[lat, lon], [end_lat, end_lon]],
+                        weight=2,  # Cieńsza linia w kolorze operatora
+                        color=line_color,  # Kolor operatora
                         opacity=0.8,
                         tooltip=f'Azymut: {azimuth}°'
                     ).add_to(map_)
