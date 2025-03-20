@@ -577,6 +577,35 @@ class MainWindow(QMainWindow):
         self.worker.progress.connect(self.update_progress)
         self.worker.result.connect(self.display_map)
         self.worker.start()
+    def load_azimuth_data(self, station_id):
+        """
+        Wczytywanie danych o azymutach z CSV 
+        """
+        csv_file = os.path.exists(csv_file)
+        if not os.path.exists(csv_file):
+            logging.warning(f"Brak pliku CSV z danymi azymutów dla station ID {station_id}")
+            return []
+        
+        azimuths = []
+        try:
+            with open(csv_file, mode='r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    azymuths_str = row.get('Azymuts', '')
+                    if azymuths_str:
+                        # pozdielenie azymutów jako ciąg oddzielony spacjami
+                        azymuth_list = [az.strip() for az in azymuths_str.split(',')]
+                        for az in azymuth_list:
+                            # usuwanie niepotrzebnego znaku - stopien, rzutowanie na float
+                            try:
+                                azimuth_value = float(az.replace('°', ' '))
+                                if 0 <= azimuth_value <= 360:
+                                    azimuths.append(azimuth_value)
+                            except ValueError:
+                                logging.warning(f"Nieprawidłowy format azymutu: {az}")
+        except Exception as e:
+            logging.error(f"Błąd podczas wczytywania danych azymótw z {csv_file}: {e}")
+            return azimuths
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
