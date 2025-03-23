@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget,
     QLineEdit, QPushButton, QProgressBar, QLabel, QMessageBox, QSpinBox
 )
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QThread, pyqtSignal
 import folium
@@ -495,6 +496,8 @@ class MainWindow(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
+        
+        self.setWindowIcon(QIcon("ikona.ico"))
 
         self.address_input = QLineEdit(self)
         self.address_input.setPlaceholderText("Podaj adres: ")
