@@ -544,7 +544,7 @@ class MainWindow(QMainWindow):
     def show_map(self):
         address = self.address_input.text()
         api_key = self.api_key_input.text()
-        # api_key = 'test'
+     
         radius = self.radius_spinbox.value()
         if not api_key:
             self.status_label.setText("Klucz API, który został podany jest niepoprawny.")
