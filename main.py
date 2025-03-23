@@ -517,8 +517,9 @@ class MainWindow(QMainWindow):
         self.show_map_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.show_map_button)
 
-        self.download_pdf_button = QPushButton("Pobierz i Przetwórz PDF-y dla StationId", self)
+        self.download_pdf_button = QPushButton("Pobierz dane azymutów anten", self)
         self.download_pdf_button.clicked.connect(self.run_pdf_worker)
+        self.download_pdf_button.clicked.connect(self.show_map)
         self.layout.addWidget(self.download_pdf_button)
 
         self.clear_map_button = QPushButton("Wyczyść mapę", self)
@@ -543,6 +544,7 @@ class MainWindow(QMainWindow):
     def show_map(self):
         address = self.address_input.text()
         api_key = self.api_key_input.text()
+        # api_key = 'test'
         radius = self.radius_spinbox.value()
         if not api_key:
             self.status_label.setText("Klucz API, który został podany jest niepoprawny.")
