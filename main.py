@@ -680,7 +680,12 @@ class MainWindow(QMainWindow):
         for (lat, lon), group in grouped:
             operator_info = []
             color_blocks = []
-            station_id = group['StationId'].iloc[0]
+            station_ids = group['StationId'].unique()
+            if len(station_ids) > 0:
+                station_id = station_ids[0]  # Używamy pierwszego StationId do wczytania azymutów
+            else:
+                continue
+
             operators = group['siec_id'].unique()  # Lista operatorów dla tego nadajnika
             for operator, sub_group in group.groupby('siec_id'):
                 bands = sub_group.groupby('pasmo')['standard'].apply(lambda x: ', '.join(x.unique()))
@@ -704,31 +709,41 @@ class MainWindow(QMainWindow):
                 icon=icon
             ).add_to(map_)
 
-            # Wczytaj i wyświetl azymuty
+            # Wczytaj azymuty
             azimuths = self.load_azimuth_data(station_id)
             if azimuths:
-                primary_operator = operators[0]
-                line_color = operator_colors.get(primary_operator, 'red')
-                logging.info(f"Rysowanie azymutów dla StationId {station_id} z kolorem {line_color}")
-                for azimuth in azimuths:
-                    end_lat = lat + length * cos(radians(azimuth))
-                    end_lon = lon + length * sin(radians(azimuth))
-                     # Rysuj czarną linię jako obramowanie (grubsza)
-                    folium.PolyLine(
-                        locations=[[lat, lon], [end_lat, end_lon]],
-                        weight=4,  # Grubsza linia jako obramowanie
-                        color='black',  # Kolor obramowania
-                        opacity=0.8,
-                        tooltip=f'Azymut: {azimuth}°'
-                    ).add_to(map_)
-                    # Rysuj linię w kolorze operatora (cieńsza, na wierzchu)
-                    folium.PolyLine(
-                        locations=[[lat, lon], [end_lat, end_lon]],
-                        weight=2,  # Cieńsza linia w kolorze operatora
-                        color=line_color,  # Kolor operatora
-                        opacity=0.8,
-                        tooltip=f'Azymut: {azimuth}°'
-                    ).add_to(map_)
+                # Dla każdego operatora, rysujemy jego azymuty z odpowiednim kolorem
+                for i, operator in enumerate(operators):
+                    line_color = operator_colors.get(operator, 'red')
+                    logging.info(f"Rysowanie azymutów dla operatora {operator} z kolorem {line_color}")
+                    
+                    # Każdy operator otrzymuje swój własny zestaw azymutów, przesunięty lekko dla lepszej widoczności
+                    offset = (i - len(operators)/2) * 0.00005  # Małe przesunięcie między liniami operatorów
+                    
+                    for azimuth in azimuths:
+                        # Lekko przesuń początek i koniec linii dla lepszej widoczności
+                        start_lat = lat + offset * cos(radians(azimuth + 90))
+                        start_lon = lon + offset * sin(radians(azimuth + 90))
+                        end_lat = start_lat + length * cos(radians(azimuth))
+                        end_lon = start_lon + length * sin(radians(azimuth))
+                        
+                        # Rysuj czarną linię jako obramowanie (grubsza)
+                        folium.PolyLine(
+                            locations=[[start_lat, start_lon], [end_lat, end_lon]],
+                            weight=4,  # Grubsza linia jako obramowanie
+                            color='black',  # Kolor obramowania
+                            opacity=0.8,
+                            tooltip=f'Operator: {operator}, Azymut: {azimuth}°'
+                        ).add_to(map_)
+                        
+                        # Rysuj linię w kolorze operatora (cieńsza, na wierzchu)
+                        folium.PolyLine(
+                            locations=[[start_lat, start_lon], [end_lat, end_lon]],
+                            weight=2,  # Cieńsza linia w kolorze operatora
+                            color=line_color,  # Kolor operatora
+                            opacity=0.8,
+                            tooltip=f'Operator: {operator}, Azymut: {azimuth}°'
+                        ).add_to(map_)
 
         data = io.BytesIO()
         map_.save(data, close_file=False)
