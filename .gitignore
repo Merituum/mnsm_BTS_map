@@ -19,3 +19,4 @@ antenna_data.csv
 extracted_texts/
 antenna_data_*
 *.txt
+!requirements.txt
