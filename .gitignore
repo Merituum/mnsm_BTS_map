@@ -13,10 +13,13 @@ build
 linie.kmz
 # images
 main.spec
-pdfs_downloaded/ 
+pdfs_downloaded/
 downloaded_files/
 antenna_data.csv
 extracted_texts/
 antenna_data_*
 *.txt
 !requirements.txt
+setup.py
+*.iss
+Output/
