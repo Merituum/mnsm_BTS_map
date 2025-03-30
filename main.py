@@ -18,7 +18,7 @@ import pdfplumber
 import re
 import csv
 from urllib.parse import urlencode
-from math import cos, sin, radians  # Zmieniono z "from math import *" na konkretne importy
+from math import cos, sin, radians  
 import json
 import configparser
 
@@ -53,7 +53,6 @@ WOJEWODZTW_MAP = {
     "Pomeranian Voivodeship": "Pomorskie",
 }
 
-# Funkcja normalizacji operatorów
 def normalize_operator_name(name):
     """
     Normalizuje nazwę operatora poprzez usunięcie znaków specjalnych i przekształcenie na małe litery.
@@ -141,7 +140,7 @@ class Worker(QThread):
                     'siec_id': str,
                     'LONGuke': float,
                     'LATIuke': float,
-                    'StationId': str,  # Wymuszenie typu str dla StationId
+                    'StationId': str, 
                     'wojewodztwo_id': str,
                     'pasmo': str,
                     'standard': str
@@ -185,7 +184,7 @@ class PdfWorker(QThread):
             total = len(self.station_ids)
             processed = 0
             for station_id in self.station_ids:
-                station_id = str(station_id)  # Upewnij się, że station_id jest ciągiem znaków
+                station_id = str(station_id)  
                 info = self.process_station(station_id)
                 if info:
                     self.extracted_data.append(info)
