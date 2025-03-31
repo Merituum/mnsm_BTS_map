@@ -502,9 +502,9 @@ class MainWindow(QMainWindow):
         self.address_input.setPlaceholderText("Podaj adres: ")
         self.layout.addWidget(self.address_input)
 
-        self.api_key_input = QLineEdit(self)
-        self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
-        self.layout.addWidget(self.api_key_input)
+        # self.api_key_input = QLineEdit(self)
+        # self.api_key_input.setPlaceholderText("Podaj klucz API (OpenCage)")
+        # self.layout.addWidget(self.api_key_input)
 
         self.radius_spinbox = QSpinBox(self)
         self.radius_spinbox.setRange(1, 10)
@@ -542,7 +542,8 @@ class MainWindow(QMainWindow):
 
     def show_map(self):
         address = self.address_input.text()
-        api_key = self.api_key_input.text()
+        # api_key = self.api_key_input.text()
+        api_key ='ba58e59e29f44d02a7bfad96a7f6388c'
      
         radius = self.radius_spinbox.value()
         if not api_key:

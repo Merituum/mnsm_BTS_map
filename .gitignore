@@ -21,5 +21,4 @@ antenna_data_*
 *.txt
 !requirements.txt
 setup.py
-*.iss
 Output/
