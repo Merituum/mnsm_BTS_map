@@ -821,6 +821,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Mapa została wyczyszczona.")
         self.worker = None
         logging.info("Mapa i dane zostały wyczyszczone.")
+        # todo: change texts displayed in program, that are not necesarly correct
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
